@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Entrar — Kinusty Volleyball</title>
+  <link rel="icon" href="/img/logo.png">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <main class="pagina-form">
+    <div class="form-box">
+      <a href="/"><img src="/img/logo.png" alt="Kinusty Volleyball" class="form-logo"></a>
+      <div class="card">
+        <h2 style="text-align:center">Entrar</h2>
+        <p class="muted" style="text-align:center;margin-top:0">Área do aluno e administração</p>
+        <div id="erro" class="erro-msg oculto"></div>
+        <form id="form-login">
+          <div class="campo"><label for="email">E-mail</label><input id="email" name="email" type="email" autocomplete="email" required></div>
+          <div class="campo"><label for="senha">Senha</label><input id="senha" name="senha" type="password" autocomplete="current-password" required></div>
+          <button class="btn btn-gold btn-block" type="submit">Entrar</button>
+        </form>
+        <p class="muted" style="text-align:center;margin-bottom:0;font-size:.9rem">Ainda não é aluno? <a href="/matricula.html">Matricule-se</a></p>
+      </div>
+      <p class="muted" style="text-align:center;font-size:.8rem">Esqueceu a senha? Fale com a escolinha pelo WhatsApp.</p>
+    </div>
+  </main>
+  <script src="/js/common.js"></script>
+  <script>
+    document.getElementById('form-login').addEventListener('submit', async e => {
+      e.preventDefault();
+      const erro = document.getElementById('erro');
+      erro.classList.add('oculto');
+      const btn = e.target.querySelector('button');
+      btn.disabled = true;
+      try {
+        const r = await api('/api/auth/login', { method: 'POST', body: dadosForm(e.target) });
+        location.href = r.redirecionar;
+      } catch (err) {
+        erro.textContent = err.message;
+        erro.classList.remove('oculto');
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

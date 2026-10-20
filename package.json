@@ -1,0 +1,19 @@
+{
+  "name": "kinusty-volei",
+  "version": "1.0.0",
+  "description": "Sistema de matrículas, área do aluno e painel administrativo da Kinusty Volleyball",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env.local server.js",
+    "seed": "node --env-file-if-exists=.env.local seed.js",
+    "reset": "node --env-file-if-exists=.env.local seed.js --reset"
+  },
+  "engines": {
+    "node": ">=22.9"
+  },
+  "dependencies": {
+    "express": "4.21.2",
+    "pg": "8.13.1"
+  }
+}

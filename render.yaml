@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: kinusty-volei
+    runtime: node
+    plan: free
+    region: ohio
+    buildCommand: npm ci --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "22.12.0"
+      - key: TZ
+        value: America/Belem
+      - key: DATABASE_URL
+        sync: false

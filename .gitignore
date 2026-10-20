@@ -1,0 +1,6 @@
+.neon
+.env
+.env.local
+node_modules
+data/
+*.db

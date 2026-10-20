@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Matrícula — Kinusty Volleyball</title>
+  <link rel="icon" href="/img/logo.png">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <main class="pagina-form">
+    <div class="form-box largo">
+      <a href="/"><img src="/img/logo.png" alt="Kinusty Volleyball" class="form-logo"></a>
+      <div class="card">
+        <h2 class="titulo-display" style="text-align:center;font-size:2.4rem;margin-bottom:.2rem">Matrícula online</h2>
+        <p class="muted" style="text-align:center;margin-top:0">Leva menos de 2 minutos. Já tem conta? <a href="/login.html">Entrar</a></p>
+
+        <div class="etapas">
+          <div class="etapa ativa" data-etapa="1">Plano e turma</div>
+          <div class="etapa" data-etapa="2">Seus dados</div>
+          <div class="etapa" data-etapa="3">Acesso e confirmação</div>
+        </div>
+        <div id="erro" class="erro-msg oculto"></div>
+
+        <form id="form" novalidate>
+          <!-- Etapa 1 -->
+          <section data-passo="1">
+            <div id="seletor"></div>
+            <div class="campo">
+              <label for="nivel">Seu nível no vôlei</label>
+              <select id="nivel" name="nivel">
+                <option value="iniciante">Iniciante — nunca joguei ou jogo pouco</option>
+                <option value="intermediario">Intermediário — conheço os fundamentos</option>
+                <option value="avancado">Avançado — já jogo/competi</option>
+              </select>
+            </div>
+          </section>
+
+          <!-- Etapa 2 -->
+          <section data-passo="2" class="oculto">
+            <div class="campo"><label for="nome">Nome completo do aluno *</label><input id="nome" name="nome" required autocomplete="name"></div>
+            <div class="grid-2">
+              <div class="campo"><label for="nascimento">Data de nascimento *</label><input id="nascimento" name="nascimento" type="date" required></div>
+              <div class="campo"><label for="telefone">WhatsApp *</label><input id="telefone" name="telefone" type="tel" placeholder="(91) 9 0000-0000" required autocomplete="tel"></div>
+            </div>
+            <div class="grid-2">
+              <div class="campo"><label for="cpf">CPF (opcional)</label><input id="cpf" name="cpf" inputmode="numeric" placeholder="000.000.000-00"></div>
+              <div class="campo"><label for="contato_emergencia">Contato de emergência</label><input id="contato_emergencia" name="contato_emergencia" placeholder="Nome e telefone"></div>
+            </div>
+            <div id="bloco-responsavel" class="oculto">
+              <p class="gold" style="font-size:.9rem;margin-top:0">Aluno menor de idade — informe o responsável:</p>
+              <div class="grid-2">
+                <div class="campo"><label for="responsavel">Nome do responsável *</label><input id="responsavel" name="responsavel"></div>
+                <div class="campo"><label for="telefone_responsavel">Telefone do responsável</label><input id="telefone_responsavel" name="telefone_responsavel" type="tel"></div>
+              </div>
+            </div>
+            <div class="campo"><label for="observacoes_saude">Observações de saúde (alergias, lesões, medicamentos)</label><textarea id="observacoes_saude" name="observacoes_saude" rows="2"></textarea></div>
+          </section>
+
+          <!-- Etapa 3 -->
+          <section data-passo="3" class="oculto">
+            <div class="grid-2">
+              <div>
+                <div class="campo"><label for="email">E-mail (será seu login) *</label><input id="email" name="email" type="email" required autocomplete="email"></div>
+                <div class="campo"><label for="senha">Crie uma senha *</label><input id="senha" name="senha" type="password" minlength="6" required autocomplete="new-password"><div class="hint">Mínimo de 6 caracteres</div></div>
+                <div class="campo"><label for="senha2">Confirme a senha *</label><input id="senha2" type="password" required autocomplete="new-password"></div>
+              </div>
+              <div>
+                <label>Resumo da matrícula</label>
+                <div class="resumo-box" id="resumo"></div>
+              </div>
+            </div>
+            <label class="check mt"><input type="checkbox" name="aceite" id="aceite">
+              <span>Declaro estar apto(a) para a prática esportiva e concordo com as regras da escolinha: mensalidade com vencimento mensal, aviso prévio para cancelamento e uso de imagem em redes sociais da Kinusty.</span></label>
+          </section>
+
+          <div class="flex space mt-2">
+            <button type="button" class="btn btn-ghost" id="voltar" style="visibility:hidden">← Voltar</button>
+            <button type="button" class="btn btn-gold" id="avancar">Continuar →</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/seletor.js"></script>
+  <script>
+    let passo = 1, seletor, info;
+    const form = document.getElementById('form');
+    const erro = document.getElementById('erro');
+    const mostrarErro = msg => { erro.textContent = msg; erro.classList.remove('oculto'); erro.scrollIntoView({ block: 'center', behavior: 'smooth' }); };
+
+    api('/api/publico/info').then(i => {
+      info = i;
+      const planoUrl = new URLSearchParams(location.search).get('plano');
+      seletor = seletorPlano(document.getElementById('seletor'), info, { plano_id: planoUrl });
+    });
+
+    function idade(nasc) {
+      if (!nasc) return null;
+      const n = new Date(nasc + 'T00:00:00'), h = new Date();
+      let i = h.getFullYear() - n.getFullYear();
+      if (h < new Date(h.getFullYear(), n.getMonth(), n.getDate())) i--;
+      return i;
+    }
+    document.getElementById('nascimento').addEventListener('change', e => {
+      const i = idade(e.target.value);
+      document.getElementById('bloco-responsavel').classList.toggle('oculto', !(i !== null && i < 18));
+    });
+
+    function validar(p) {
+      const v = id => document.getElementById(id).value.trim();
+      if (p === 1) return seletor.valido();
+      if (p === 2) {
+        if (v('nome').split(' ').filter(Boolean).length < 2) return 'Informe o nome completo (nome e sobrenome).';
+        if (!v('nascimento')) return 'Informe a data de nascimento.';
+        if (v('telefone').replace(/\D/g, '').length < 10) return 'Informe um WhatsApp válido com DDD.';
+        if (idade(v('nascimento')) < 18 && !v('responsavel')) return 'Informe o nome do responsável.';
+      }
+      if (p === 3) {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v('email'))) return 'Informe um e-mail válido.';
+        if (v('senha').length < 6) return 'A senha deve ter pelo menos 6 caracteres.';
+        if (v('senha') !== v('senha2')) return 'As senhas não conferem.';
+        if (!document.getElementById('aceite').checked) return 'Você precisa aceitar as regras da escolinha.';
+      }
+      return null;
+    }
+
+    function irPara(p) {
+      passo = p;
+      erro.classList.add('oculto');
+      document.querySelectorAll('[data-passo]').forEach(s => s.classList.toggle('oculto', Number(s.dataset.passo) !== p));
+      document.querySelectorAll('.etapa').forEach(e => {
+        const n = Number(e.dataset.etapa);
+        e.classList.toggle('ativa', n === p);
+        e.classList.toggle('feita', n < p);
+      });
+      document.getElementById('voltar').style.visibility = p > 1 ? 'visible' : 'hidden';
+      document.getElementById('avancar').textContent = p === 3 ? 'Confirmar matrícula ✓' : 'Continuar →';
+      if (p === 3) {
+        const pl = seletor.plano(), t = seletor.turma();
+        document.getElementById('resumo').innerHTML = `
+          <div><span>Aluno</span><strong>${esc(document.getElementById('nome').value)}</strong></div>
+          <div><span>Plano</span><strong>${esc(pl.nome)}</strong></div>
+          <div><span>Turma</span><strong>${esc(t.nome)}</strong></div>
+          <div><span>Horário</span><strong>${t.horario_inicio}–${t.horario_fim}</strong></div>
+          <div><span>Dias</span><strong>${seletor.estado.dias.map(d => DIAS_CURTOS[d]).join(', ')}</strong></div>
+          <div style="border-top:1px solid var(--line);margin-top:.4rem;padding-top:.6rem"><span>Mensalidade</span><strong class="gold" style="font-size:1.2rem">${moeda(pl.preco)}</strong></div>`;
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    document.getElementById('voltar').addEventListener('click', () => irPara(passo - 1));
+    document.getElementById('avancar').addEventListener('click', async () => {
+      const msg = validar(passo);
+      if (msg) return mostrarErro(msg);
+      if (passo < 3) return irPara(passo + 1);
+
+      const btn = document.getElementById('avancar');
+      btn.disabled = true; btn.textContent = 'Enviando...';
+      try {
+        const corpo = { ...dadosForm(form), ...seletor.estado, aceite: document.getElementById('aceite').checked };
+        const r = await api('/api/matricula', { method: 'POST', body: corpo });
+        location.href = r.redirecionar + '?bemvindo=1';
+      } catch (e) {
+        mostrarErro(e.message);
+        btn.disabled = false; btn.textContent = 'Confirmar matrícula ✓';
+      }
+    });
+  </script>
+</body>
+</html>

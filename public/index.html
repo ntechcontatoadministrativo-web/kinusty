@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kinusty Volleyball — Escolinha de Vôlei em Belém</title>
+  <meta name="description" content="Escolinha de vôlei em Belém/PA para crianças, jovens e adultos. Técnicos experientes. Matricule-se online.">
+  <link rel="icon" href="/img/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="topo">
+    <div class="container">
+      <a href="/" class="marca"><img src="/img/logo.png" alt="Kinusty Volleyball"><span>KINUSTY<small>VOLLEYBALL</small></span></a>
+      <nav class="nav">
+        <a href="#planos">Planos</a>
+        <a href="#horarios">Horários</a>
+        <a href="#sobre">Sobre</a>
+        <a href="/login.html" id="link-entrar" class="btn btn-ghost btn-sm">Entrar</a>
+        <a href="/matricula.html" class="btn btn-gold btn-sm">Matricule-se</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="container">
+      <div>
+        <span class="tag">ESCOLINHA DE VÔLEI · BELÉM/PA</span>
+        <h1 class="titulo-display">Aqui você aprende <em>volleyball</em> de verdade!</h1>
+        <p>Turmas para crianças, jovens e adultos — do iniciante ao avançado — com técnicos experientes e um time que vira família.</p>
+        <div class="flex mt-2">
+          <a href="/matricula.html" class="btn btn-gold">Quero me matricular</a>
+          <a href="#" class="btn btn-outline js-whats">Agendar aula experimental</a>
+        </div>
+        <div class="hero-stats">
+          <div><strong>Desde 2022</strong><span>formando atletas</span></div>
+          <div><strong>4 dias</strong><span>de treino por semana</span></div>
+          <div><strong>Todas as idades</strong><span>Kids, feminino e masculino</span></div>
+        </div>
+      </div>
+      <img src="/img/logo.png" alt="" class="hero-logo">
+    </div>
+  </section>
+
+  <section class="secao secao-alt" id="planos">
+    <div class="container">
+      <div class="secao-titulo">
+        <span class="tag">PLANOS</span>
+        <h2 class="titulo-display">Escolha o seu ritmo</h2>
+        <p>Mensalidade fixa, sem taxa de matrícula. Escolha quantos dias por semana quer treinar.</p>
+      </div>
+      <div class="planos" id="lista-planos"></div>
+    </div>
+  </section>
+
+  <section class="secao" id="horarios">
+    <div class="container">
+      <div class="secao-titulo">
+        <span class="tag">DIAS DE TREINO</span>
+        <h2 class="titulo-display">Segunda, terça, quinta e sexta</h2>
+        <p id="endereco">📍 Igreja dos Capuchinhos — Belém/PA</p>
+      </div>
+      <div class="horarios" id="lista-turmas"></div>
+    </div>
+  </section>
+
+  <section class="secao secao-alt" id="sobre">
+    <div class="container">
+      <div class="secao-titulo">
+        <span class="tag">POR QUE A KINUSTY</span>
+        <h2 class="titulo-display">Mais que um treino</h2>
+      </div>
+      <div class="diferenciais">
+        <div class="card diferencial"><div class="ic">🏐</div><h3>Do zero ao avançado</h3><p>Metodologia por níveis: fundamentos, tática e jogo.</p></div>
+        <div class="card diferencial"><div class="ic">🎯</div><h3>Técnicos experientes</h3><p>Acompanhamento próximo do Coach Pedro e equipe.</p></div>
+        <div class="card diferencial"><div class="ic">🏆</div><h3>Competições</h3><p>Participação em torneios como a Brasil Cup.</p></div>
+        <div class="card diferencial"><div class="ic">📱</div><h3>Tudo pelo app</h3><p>Mensalidades, frequência, avisos e check-in na sua área.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="secao">
+    <div class="container">
+      <div class="cta-final">
+        <h2 class="titulo-display">Bora pra quadra?</h2>
+        <p>Faça sua matrícula online em menos de 2 minutos e já acesse sua área de aluno.</p>
+        <a href="/matricula.html" class="btn mt">Fazer minha matrícula</a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="rodape">
+    <div class="container">
+      <span>© <span id="ano"></span> Kinusty Volleyball · Belém/PA</span>
+      <span><a href="https://instagram.com/kinustyvolleyball" target="_blank" rel="noopener">@kinustyvolleyball</a> · <a href="/login.html">Área do aluno</a></span>
+    </div>
+  </footer>
+
+  <a class="whats-flutuante js-whats" href="#" target="_blank" rel="noopener" aria-label="Falar no WhatsApp">
+    <svg viewBox="0 0 32 32"><path d="M16 3C8.8 3 3 8.8 3 16c0 2.3.6 4.5 1.7 6.5L3 29l6.7-1.7c1.9 1 4.1 1.6 6.3 1.6 7.2 0 13-5.8 13-13S23.2 3 16 3zm0 23.7c-2 0-4-.5-5.7-1.6l-.4-.2-4 1 1.1-3.9-.3-.4c-1.2-1.8-1.8-3.9-1.8-6 0-6 4.9-10.9 10.9-10.9S26.9 9.9 26.9 16 22 26.7 16 26.7zm6-8.1c-.3-.2-1.9-1-2.2-1.1-.3-.1-.5-.2-.7.2-.2.3-.8 1.1-1 1.3-.2.2-.4.2-.7.1-.3-.2-1.4-.5-2.6-1.6-1-.9-1.6-1.9-1.8-2.2-.2-.3 0-.5.1-.7l.5-.6c.2-.2.2-.4.3-.6.1-.2 0-.4 0-.6l-1-2.4c-.3-.6-.5-.5-.7-.5h-.6c-.2 0-.6.1-.9.4-.3.3-1.2 1.1-1.2 2.8s1.2 3.2 1.4 3.5c.2.2 2.4 3.6 5.7 5 .8.3 1.4.5 1.9.7.8.3 1.5.2 2.1.1.6-.1 1.9-.8 2.2-1.5.3-.7.3-1.4.2-1.5-.1-.2-.3-.3-.7-.4z"/></svg>
+  </a>
+
+  <script src="/js/common.js"></script>
+  <script>
+    document.getElementById('ano').textContent = new Date().getFullYear();
+    const BENEFICIOS = {
+      2: ['2 treinos por semana', 'Ideal para começar', 'Acesso à área do aluno'],
+      3: ['3 treinos por semana', 'Evolução mais rápida', 'Acesso à área do aluno', 'Prioridade em torneios'],
+      4: ['Treine todos os dias de aula', 'Máxima evolução', 'Acesso à área do aluno', 'Prioridade em torneios'],
+    };
+    api('/api/publico/info').then(info => {
+      document.getElementById('lista-planos').innerHTML = info.planos.map(p => `
+        <div class="plano ${p.dias_semana === 3 ? 'destaque' : ''}">
+          ${p.dias_semana === 3 ? '<span class="selo">MAIS ESCOLHIDO</span>' : ''}
+          <h3>${esc(p.nome)}</h3>
+          <div class="dias">${p.dias_semana}x <span style="font-size:1.4rem">na semana</span></div>
+          <div class="preco">${moeda(p.preco)} <small>/mês</small></div>
+          <ul>${(BENEFICIOS[p.dias_semana] || []).map(b => `<li>${b}</li>`).join('')}</ul>
+          <a class="btn ${p.dias_semana === 3 ? 'btn-gold' : 'btn-outline'} btn-block" href="/matricula.html?plano=${p.id}">Escolher plano</a>
+        </div>`).join('');
+
+      document.getElementById('lista-turmas').innerHTML = info.turmas.map(t => `
+        <div class="horario">
+          <span class="muted" style="font-size:.8rem">${esc(t.categoria || '')}</span>
+          <h3>${esc(t.nome)}</h3>
+          <div class="hora">${t.horario_inicio} às ${t.horario_fim}</div>
+          <div class="chips">${t.dias.map(d => `<span class="chip">${info.dias_nomes[d]}</span>`).join('')}</div>
+        </div>`).join('');
+
+      document.getElementById('endereco').textContent = '📍 ' + info.escola.endereco;
+      const wpp = linkWhats(info.escola.whatsapp, 'Olá! Gostaria de agendar uma aula experimental na Kinusty Volleyball 🏐');
+      document.querySelectorAll('.js-whats').forEach(a => { a.href = wpp; a.target = '_blank'; });
+    });
+    api('/api/me', { silencioso: true }).then(r => {
+      const a = document.getElementById('link-entrar');
+      a.textContent = 'Minha área';
+      a.href = r.user.role === 'admin' ? '/admin.html' : '/aluno.html';
+    }).catch(() => {});
+  </script>
+</body>
+</html>

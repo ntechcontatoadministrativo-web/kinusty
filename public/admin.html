@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Painel Administrativo — Kinusty Volleyball</title>
+  <link rel="icon" href="/img/logo.png">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="mobile-bar">
+    <button id="abrir-menu" aria-label="Abrir menu">☰</button>
+    <a href="/" class="marca"><img src="/img/logo.png" alt="" style="width:34px;height:34px"><span>KINUSTY</span></a>
+    <span style="width:30px"></span>
+  </div>
+  <div class="app">
+    <aside class="lateral">
+      <a href="/" class="marca"><img src="/img/logo.png" alt=""><span>KINUSTY<small>ADMINISTRAÇÃO</small></span></a>
+      <nav class="menu">
+        <button data-aba="dashboard"><span class="ic">📊</span>Dashboard</button>
+        <button data-aba="alunos"><span class="ic">👥</span>Alunos</button>
+        <button data-aba="financeiro"><span class="ic">💰</span>Financeiro <span class="contador oculto" id="cont-analise"></span></button>
+        <button data-aba="chamada"><span class="ic">✅</span>Chamada</button>
+        <button data-aba="turmas"><span class="ic">🏐</span>Turmas e planos</button>
+        <button data-aba="avisos"><span class="ic">📣</span>Avisos</button>
+        <button data-aba="config"><span class="ic">⚙️</span>Configurações</button>
+      </nav>
+      <div class="usuario-box"><div class="avatar">AD</div><div><strong id="nome-usuario">Administrador</strong><small>Administração</small></div></div>
+      <button class="btn btn-ghost btn-sm" onclick="sair()">Sair</button>
+    </aside>
+    <main class="conteudo" id="conteudo"></main>
+  </div>
+  <script src="/js/common.js"></script>
+  <script src="/js/admin.js"></script>
+</body>
+</html>
