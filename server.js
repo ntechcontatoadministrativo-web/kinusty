@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { db, hashSenha, conferirSenha, transacao, getConfig, inicializar } = require('./db');
+const mp = require('./mercadopago');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -137,6 +138,43 @@ function calcIdade(nasc) {
   return i;
 }
 
+// ---------- Mercado Pago ----------
+const urlBase = req => (process.env.SITE_URL || process.env.RENDER_EXTERNAL_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+
+// Consulta o pagamento no Mercado Pago e atualiza a mensalidade correspondente.
+// O status vem sempre da API do MP (nunca do navegador), então não dá para forjar um pagamento.
+async function processarPagamentoMP(paymentId, userId = null) {
+  const p = await mp.buscarPagamento(paymentId);
+  const id = Number(/^mens-(\d+)$/.exec(p.external_reference || '')?.[1]) || 0;
+  const m = await db.get('SELECT * FROM mensalidades WHERE id = ?', id);
+  if (!m || (userId && m.user_id !== userId)) throw falha(404, 'Pagamento não encontrado.');
+  if (p.status === 'approved') {
+    if (Number(p.transaction_amount) + 0.009 < m.valor) {
+      console.warn(`Pagamento MP ${p.id} com valor menor que a mensalidade ${m.id}`);
+      return { status: 'valor_divergente' };
+    }
+    await db.run(`UPDATE mensalidades SET status = 'paga', pago_em = ?, forma_pagamento = ?, mp_payment_id = ? WHERE id = ? AND status IN ('pendente','em_analise')`,
+      fmtData(new Date(p.date_approved || Date.now())), mp.formaPagamento(p), String(p.id), m.id);
+  } else if (['refunded', 'charged_back'].includes(p.status)) {
+    await db.run(`UPDATE mensalidades SET status = 'pendente', pago_em = NULL WHERE id = ? AND mp_payment_id = ?`, m.id, String(p.id));
+  }
+  return { status: p.status };
+}
+
+app.post('/api/mercadopago/webhook', async (req, res) => {
+  const tipo = req.query.type || req.query.topic || req.body?.type;
+  const paymentId = req.query['data.id'] || req.body?.data?.id || (req.query.topic === 'payment' ? req.query.id : null);
+  if (tipo !== 'payment' || !paymentId) return res.sendStatus(200);
+  if (!mp.assinaturaValida(req, paymentId)) return res.sendStatus(401);
+  try {
+    await processarPagamentoMP(paymentId);
+    res.sendStatus(200);
+  } catch (e) {
+    console.error('Webhook Mercado Pago:', e.message);
+    res.sendStatus(e.status === 404 ? 200 : 500); // 500 faz o MP tentar de novo
+  }
+});
+
 // =====================================================
 // ROTAS PÚBLICAS
 // =====================================================
@@ -254,8 +292,28 @@ aluno.get('/resumo', rota(async req => {
     frequencia_30d: await frequencia(req.user.id, addDias(hoje(), -30)),
     frequencia_total: await frequencia(req.user.id, '0000-00-00'),
     avisos, treina_hoje: treinaHoje, checkin_hoje: !!presencaHoje?.presente,
-    pix: cfg.chave_pix, whatsapp: cfg.whatsapp, dias_nomes: DIAS_NOMES,
+    pix: cfg.chave_pix, whatsapp: cfg.whatsapp, dias_nomes: DIAS_NOMES, mercadopago: mp.configurado(),
   };
+}));
+
+aluno.post('/mensalidades/:id/mercadopago', rota(async req => {
+  const m = await db.get('SELECT * FROM mensalidades WHERE id = ? AND user_id = ?', Number(req.params.id) || 0, req.user.id);
+  if (!m) throw falha(404, 'Mensalidade não encontrada.');
+  if (!['pendente', 'em_analise'].includes(m.status)) throw falha(400, 'Essa mensalidade não está em aberto.');
+  const cfg = await getConfig();
+  const [y, mes] = m.competencia.split('-');
+  const url = await mp.criarCheckout({
+    mensalidade: m, aluno: req.user, baseUrl: urlBase(req),
+    titulo: `Mensalidade ${mes}/${y} — ${cfg.nome_escola || 'Kinusty Volleyball'}`,
+  });
+  return { url };
+}));
+
+// Chamado quando o aluno volta do checkout: confirma na hora, sem esperar o webhook
+aluno.post('/mercadopago/confirmar', rota(async req => {
+  const id = String(req.body?.payment_id || '');
+  if (!/^\d+$/.test(id)) throw falha(400, 'Pagamento inválido.');
+  return processarPagamentoMP(id, req.user.id);
 }));
 
 aluno.get('/mensalidades', rota(req => listarMensalidades(req.user.id)));
@@ -595,7 +653,10 @@ admin.post('/avisos', rota(async req => {
 }));
 admin.delete('/avisos/:id', rota(async req => { await db.run('DELETE FROM avisos WHERE id = ?', Number(req.params.id) || 0); return { ok: true }; }));
 
-admin.get('/config', rota(() => getConfig()));
+admin.get('/config', rota(async req => ({
+  ...(await getConfig()),
+  mercadopago: { ativo: mp.configurado(), teste: mp.modoTeste(), webhook: `${urlBase(req)}/api/mercadopago/webhook` },
+})));
 admin.put('/config', rota(async req => {
   const permitidas = ['nome_escola', 'whatsapp', 'instagram', 'endereco', 'chave_pix', 'dia_vencimento'];
   for (const k of permitidas) {

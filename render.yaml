@@ -14,3 +14,7 @@ services:
         value: America/Belem
       - key: DATABASE_URL
         sync: false
+      - key: MP_ACCESS_TOKEN
+        sync: false
+      - key: MP_WEBHOOK_SECRET
+        sync: false

@@ -159,6 +159,8 @@ CREATE TABLE IF NOT EXISTS config (
   valor TEXT
 );
 
+ALTER TABLE mensalidades ADD COLUMN IF NOT EXISTS mp_payment_id TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_mens_user ON mensalidades(user_id);
 CREATE INDEX IF NOT EXISTS idx_mens_comp ON mensalidades(competencia);
 CREATE INDEX IF NOT EXISTS idx_pres_data ON presencas(data);

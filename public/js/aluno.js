@@ -40,6 +40,12 @@ function abrirPagamento(m) {
   const box = abrirModal(`
     <h2>Pagar mensalidade</h2>
     <p class="muted" style="margin-top:0">${competenciaBR(m.competencia, true)} · vence em ${dataBR(m.vencimento)}</p>
+    ${resumo.mercadopago ? `<div class="card mp-card">
+      <div><strong>Pagar online com Mercado Pago</strong>
+        <p class="muted" style="margin:.2rem 0 0;font-size:.9rem">PIX, cartão ou boleto · ${moeda(m.valor)} · confirmação automática</p></div>
+      <button class="btn btn-gold" id="pagar-mp">Pagar agora</button>
+    </div>
+    <p class="hint" style="margin:0 0 1rem">Ou pague direto pela chave PIX da escolinha:</p>` : ''}
     <div class="flex" style="align-items:flex-start;gap:1.5rem">
       <div id="qr" style="background:#fff;padding:10px;border-radius:12px;width:200px;height:200px;display:grid;place-items:center;flex-shrink:0"></div>
       <div style="flex:1;min-width:220px">
@@ -66,6 +72,11 @@ function abrirPagamento(m) {
     box.querySelector('#qr svg').style.cssText = 'width:100%;height:100%';
   } else box.querySelector('#qr').innerHTML = '<span style="color:#333;font-size:.8rem;text-align:center">Use o código copia e cola</span>';
   box.querySelector('#copiar').onclick = () => navigator.clipboard.writeText(codigo).then(() => toast('Código PIX copiado!'));
+  box.querySelector('#pagar-mp')?.addEventListener('click', async e => {
+    e.target.disabled = true; e.target.textContent = 'Abrindo...';
+    try { location.href = (await api(`/api/aluno/mensalidades/${m.id}/mercadopago`, { method: 'POST' })).url; }
+    catch (err) { toast(err.message, 'erro'); e.target.disabled = false; e.target.textContent = 'Pagar agora'; }
+  });
   box.querySelector('#informar').onclick = async () => {
     try {
       await api(`/api/aluno/mensalidades/${m.id}/informar-pagamento`, { method: 'POST', body: { forma: 'PIX' } });
@@ -116,7 +127,7 @@ const abas = {
         </div>
       </div>
       ${m ? `<div class="card flex space"><div><strong>Mensalidade de ${competenciaBR(m.competencia, true)}</strong><div class="muted">${moeda(m.valor)} · vence ${dataBR(m.vencimento)}</div></div>
-        ${m.status === 'em_analise' ? badge('em_analise') : `<button class="btn btn-gold" id="pagar-agora">Pagar com PIX</button>`}</div>` : ''}`;
+        ${m.status === 'em_analise' ? badge('em_analise') : `<button class="btn btn-gold" id="pagar-agora">${r.mercadopago ? 'Pagar mensalidade' : 'Pagar com PIX'}</button>`}</div>` : ''}`;
 
     document.getElementById('btn-checkin')?.addEventListener('click', async () => {
       try { await api('/api/aluno/checkin', { method: 'POST' }); toast('Presença confirmada! Bom treino 🏐'); abas.inicio(); }
@@ -128,7 +139,7 @@ const abas = {
   async mensalidades() {
     const lista = await api('/api/aluno/mensalidades');
     const pagas = lista.filter(m => m.status === 'paga');
-    conteudo.innerHTML = `${topo('Mensalidades', 'Acompanhe seus pagamentos e pague via PIX')}
+    conteudo.innerHTML = `${topo('Mensalidades', resumo.mercadopago ? 'Acompanhe seus pagamentos e pague por PIX, cartão ou boleto' : 'Acompanhe seus pagamentos e pague via PIX')}
       <div class="kpis">
         <div class="kpi"><div class="rotulo">Total pago</div><div class="valor">${moeda(pagas.reduce((a, m) => a + m.valor, 0))}</div><div class="sub">${pagas.length} mensalidade(s)</div></div>
         <div class="kpi"><div class="rotulo">Em aberto</div><div class="valor">${moeda(lista.filter(m => ['pendente', 'atrasada'].includes(m.status)).reduce((a, m) => a + m.valor, 0))}</div></div>
@@ -252,8 +263,24 @@ function render(aba) {
   abas[aba]().catch(e => { conteudo.innerHTML = `<div class="erro-msg">${esc(e.message)}</div>`; });
 }
 
-api('/api/me').then(r => {
+// Volta do checkout do Mercado Pago: confirma o pagamento antes de mostrar as telas
+async function retornoMercadoPago() {
+  const q = new URLSearchParams(location.search);
+  if (q.get('mp') !== 'retorno') return;
+  history.replaceState(null, '', location.pathname + '#mensalidades');
+  const paymentId = q.get('payment_id') || q.get('collection_id');
+  if (!paymentId || paymentId === 'null') return toast('Pagamento não concluído. Você pode tentar de novo quando quiser.', 'erro');
+  try {
+    const { status } = await api('/api/aluno/mercadopago/confirmar', { method: 'POST', body: { payment_id: paymentId } });
+    if (status === 'approved') toast('Pagamento aprovado! Obrigado 🏐');
+    else if (['pending', 'in_process', 'authorized'].includes(status)) toast('Pagamento em processamento. Ele será confirmado automaticamente.');
+    else toast('O pagamento não foi aprovado. Tente novamente ou use outra forma.', 'erro');
+  } catch (e) { toast(e.message, 'erro'); }
+}
+
+api('/api/me').then(async r => {
   if (r.user.role === 'admin') return (location.href = '/admin.html');
+  await retornoMercadoPago();
   iniciarMenu(render);
 });
 

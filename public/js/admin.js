@@ -357,6 +357,14 @@ const abas = {
             <div class="campo"><label>Dia de vencimento padrão</label><input type="number" min="1" max="28" name="dia_vencimento" value="${esc(c.dia_vencimento)}"><div class="hint">Aplicado às novas matrículas</div></div>
           </div>
           <button class="btn btn-gold">Salvar</button></form>
+        <div class="card" style="align-self:start"><h3>Mercado Pago</h3>
+          ${c.mercadopago.ativo
+            ? `<p>${c.mercadopago.teste ? '<span class="badge b-em_analise">Modo de teste</span>' : '<span class="badge b-paga">Conectado</span>'}</p>
+               <p class="muted" style="font-size:.9rem">Os alunos podem pagar por PIX, cartão ou boleto e a mensalidade é baixada automaticamente.</p>
+               <label>URL de notificações (webhook)</label><div class="pix-box">${esc(c.mercadopago.webhook)}</div>`
+            : `<p><span class="badge b-cancelada">Não configurado</span></p>
+               <p class="muted" style="font-size:.9rem">Defina a variável <strong>MP_ACCESS_TOKEN</strong> no servidor (arquivo .env.local e no Render) com o Access Token da sua conta Mercado Pago.</p>`}
+        </div>
         <form class="card" id="f-senha" style="align-self:start"><h3>Senha do administrador</h3>
           <div class="campo"><label>Senha atual</label><input type="password" name="atual" required></div>
           <div class="campo"><label>Nova senha</label><input type="password" name="nova" minlength="6" required></div>

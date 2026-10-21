@@ -308,3 +308,6 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   .card { padding: 1.1rem; }
   .filtros input, .filtros select { min-width: 0; flex: 1 1 140px; }
 }
+
+/* ---------- Mercado Pago ---------- */
+.mp-card { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: .6rem; border-color: var(--gold); background: var(--gold-soft); }

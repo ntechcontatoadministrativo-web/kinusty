@@ -64,3 +64,20 @@ A única variável obrigatória no Render é `DATABASE_URL` (copiada do `.env.lo
 
 No plano grátis o Render "dorme" após 15 min sem acesso; o primeiro acesso depois disso leva ~50 s.
 Para ficar sempre ligado, mude para o plano pago (Starter) no painel do Render.
+
+## Mercado Pago
+
+Os alunos podem pagar a mensalidade online (PIX, cartão ou boleto) pelo **Checkout Pro**; quando o pagamento
+é aprovado a mensalidade é baixada sozinha. A chave PIX manual continua disponível como alternativa.
+
+1. No [painel de desenvolvedor do Mercado Pago](https://www.mercadopago.com.br/developers/panel/app), crie uma aplicação
+   (produto *Checkout Pro*) e copie o **Access Token** (`APP_USR-...` para produção ou `TEST-...` para testes).
+2. Coloque em `.env.local` (local) e nas variáveis de ambiente do Render:
+   ```
+   MP_ACCESS_TOKEN=APP_USR-xxxxxxxx
+   MP_WEBHOOK_SECRET=xxxxxxxx   # opcional: "assinatura secreta" da tela de Webhooks
+   ```
+3. Em *Webhooks* da aplicação, cadastre `https://SEU-SITE.onrender.com/api/mercadopago/webhook` com o evento **Pagamentos**
+   (a URL exata aparece em *Configurações* no painel admin).
+
+No computador local (http) o webhook não chega, mas o pagamento é confirmado quando o aluno volta do checkout.
