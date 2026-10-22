@@ -13,21 +13,20 @@ npm start        # abre em http://localhost:3000
 ```
 
 > ⚠️ O computador local e o site publicado usam **o mesmo banco**. `npm run seed` adiciona alunos
-> fictícios e `npm run reset` **apaga tudo** (inclusive alunos reais) — use com cuidado.
+> fictícios (o banco hoje só tem alunos reais — não rode no banco de produção) e `npm run reset` **apaga tudo** (inclusive alunos reais) — use com cuidado.
 
 | Acesso | Login | Senha |
 |---|---|---|
 | Administração | `admin@kinusty.com` | `kinusty2026` |
-| Alunos de demonstração | qualquer e-mail `*.demo*@exemplo.com` | `aluno123` |
 
 > Para começar do zero (só o admin, sem alunos fictícios): `npm run reset`.
 > **Troque a senha do admin e a chave PIX** em *Configurações* antes de usar de verdade.
 
 ## O que tem
 
-**Site público** (`/`) — apresentação, planos (2x R$150 · 3x R$200 · 4x R$230), turmas e horários, botão de WhatsApp para aula experimental.
+**Site público** (`/`) — apresentação, planos individuais (2x R$150 · 3x R$200 · 4x R$230), casal (2x R$280 · 3x R$370 · 4x R$420) e família (terça e quinta: 2 pessoas R$270 · 3 R$405 · 4 R$540), turmas e horários, botão de WhatsApp para aula experimental.
 
-**Matrícula online** (`/matricula.html`) — 3 etapas: plano → turma → dias (respeitando quantos dias o plano dá direito e as vagas de cada dia), dados do aluno (pede responsável se for menor de 18), login e aceite das regras. Ao concluir, o aluno já entra logado na área dele e a 1ª mensalidade é gerada (vence em 3 dias).
+**Matrícula online** (`/matricula.html`) — 3 etapas: tipo de plano (individual, casal ou família) → plano → turma e dias (as turmas não têm limite de vagas); ficha de cada pessoa igual à ficha em papel (sexo, RG/CPF, endereço, já praticou vôlei, condições de saúde e, para menores de 18, responsável com parentesco, telefone e e-mail); login, autorização de uso de imagem e aceite das regras (reposição de faltas etc.). No casal/família, o 1º é o titular: faz o login e a mensalidade do grupo fica no nome dele; os demais não têm login. Ao concluir, o aluno já entra logado na área dele e a 1ª mensalidade é gerada (vence em 3 dias).
 
 **Área do aluno** (`/aluno.html`)
 - Início: plano, status, frequência, próximos treinos, mural de avisos

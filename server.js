@@ -48,9 +48,9 @@ async function gerarMensalidades(comp = competenciaAtual()) {
   const ultimoDia = new Date(y, m, 0).getDate();
   const r = await db.run(`
     INSERT INTO mensalidades (matricula_id, user_id, competencia, valor, vencimento)
-    SELECT m.id, m.user_id, ?::text, p.preco, ?::text || '-' || lpad(LEAST(m.dia_vencimento, ?::int)::text, 2, '0')
+    SELECT m.id, m.user_id, ?::text, COALESCE(m.valor, p.preco), ?::text || '-' || lpad(LEAST(m.dia_vencimento, ?::int)::text, 2, '0')
     FROM matriculas m JOIN planos p ON p.id = m.plano_id
-    WHERE m.status = 'ativa' AND substr(m.data_inicio, 1, 7) <= ?::text
+    WHERE m.status = 'ativa' AND substr(m.data_inicio, 1, 7) <= ?::text AND COALESCE(m.valor, p.preco) > 0
     ON CONFLICT (matricula_id, competencia) DO NOTHING`, comp, comp, ultimoDia, comp);
   return r.changes;
 }
@@ -109,27 +109,24 @@ async function ocupacaoTurma(turmaId, ignorarMatriculaId = 0) {
   return occ;
 }
 
-async function validarEscolha({ plano_id, turma_id, dias }, ignorarMatriculaId = 0) {
+// As turmas não têm limite de vagas por enquanto: só confere plano, turma e dias
+async function validarEscolha({ plano_id, turma_id, dias }) {
   const plano = await db.get('SELECT * FROM planos WHERE id = ? AND ativo = 1', Number(plano_id) || 0);
   if (!plano) throw falha(400, 'Escolha um plano válido.');
   const turma = await db.get('SELECT * FROM turmas WHERE id = ? AND ativo = 1', Number(turma_id) || 0);
   if (!turma) throw falha(400, 'Escolha uma turma válida.');
   const diasTurma = turma.dias.split(',');
-  const escolhidos = [...new Set(Array.isArray(dias) ? dias : [])];
+  // Plano família: dias obrigatórios (terça e quinta)
+  const escolhidos = plano.dias_fixos ? plano.dias_fixos.split(',') : [...new Set(Array.isArray(dias) ? dias : [])];
   if (escolhidos.length !== plano.dias_semana)
     throw falha(400, `O ${plano.nome} exige escolher exatamente ${plano.dias_semana} dias.`);
   if (escolhidos.some(d => !diasTurma.includes(d)))
     throw falha(400, `A turma ${turma.nome} treina apenas: ${diasTurma.map(d => DIAS_NOMES[d]).join(', ')}.`);
-  // ignorarMatriculaId = null pula a checagem de vagas (matrícula trancada/cancelada não ocupa vaga)
-  if (ignorarMatriculaId !== null) {
-    const ocupacao = await ocupacaoTurma(turma.id, ignorarMatriculaId);
-    const lotado = escolhidos.find(d => (ocupacao[d] || 0) >= turma.capacidade);
-    if (lotado) throw falha(400, `A turma ${turma.nome} está lotada na ${DIAS_NOMES[lotado]}. Escolha outro dia.`);
-  }
   return { plano, turma, dias: DIAS_KEYS.filter(d => escolhidos.includes(d)) };
 }
 
 const limpar = v => (typeof v === 'string' ? v.trim() : v) || null;
+const simNao = v => (v === true || v === 1 || v === '1' || v === 'sim' ? 1 : v === false || v === 0 || v === '0' || v === 'nao' ? 0 : null);
 
 function calcIdade(nasc) {
   const n = parseData(nasc), h = new Date();
@@ -179,50 +176,85 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
 // ROTAS PÚBLICAS
 // =====================================================
 app.get('/api/publico/info', rota(async () => {
-  const [cfg, planos, listaTurmas, ativas] = await Promise.all([
+  const [cfg, planos, turmas] = await Promise.all([
     getConfig(),
-    db.all('SELECT id, nome, dias_semana, preco FROM planos WHERE ativo = 1 ORDER BY dias_semana'),
+    db.all('SELECT id, nome, dias_semana, preco, tipo, pessoas, dias_fixos FROM planos WHERE ativo = 1 ORDER BY tipo DESC, pessoas, dias_semana'),
     db.all('SELECT * FROM turmas WHERE ativo = 1 ORDER BY horario_inicio, nome'),
-    db.all(`SELECT turma_id, dias FROM matriculas WHERE status = 'ativa'`),
   ]);
-  const turmas = listaTurmas.map(t => {
-    const occ = {};
-    ativas.filter(m => m.turma_id === t.id).forEach(m => m.dias.split(',').forEach(d => { occ[d] = (occ[d] || 0) + 1; }));
-    const dias = t.dias.split(',');
-    return { ...t, dias, vagas: Object.fromEntries(dias.map(d => [d, Math.max(0, t.capacidade - (occ[d] || 0))])) };
-  });
   return {
     escola: { nome: cfg.nome_escola, whatsapp: cfg.whatsapp, instagram: cfg.instagram, endereco: cfg.endereco },
-    planos, turmas, dias_nomes: DIAS_NOMES,
+    planos: planos.map(p => ({ ...p, dias_fixos: p.dias_fixos ? p.dias_fixos.split(',') : null })),
+    turmas: turmas.map(t => ({ ...t, dias: t.dias.split(',') })),
+    dias_nomes: DIAS_NOMES,
   };
 }));
 
+// Dados de uma pessoa da ficha de inscrição. O 1º aluno é o titular (login e pagamento).
+function dadosAluno(a, i, titular) {
+  const quem = i === 0 ? '' : ` (${i + 1}ª pessoa)`;
+  const nome = limpar(a.nome);
+  if (!nome || nome.length < 3) throw falha(400, `Informe o nome completo${quem}.`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(a.nascimento || '')) throw falha(400, `Informe a data de nascimento${quem}.`);
+  const menor = calcIdade(a.nascimento) < 18;
+  if (menor && (!limpar(a.responsavel) || !limpar(a.telefone_responsavel)))
+    throw falha(400, `Para menores de 18 anos, informe o nome e o telefone do responsável${quem}.`);
+  if (i === 0 && !limpar(a.telefone) && !menor) throw falha(400, 'Informe um telefone/WhatsApp.');
+  if (i === 0 && (!limpar(a.endereco) || !limpar(a.bairro) || !limpar(a.cidade))) throw falha(400, 'Informe endereço, bairro e cidade.');
+  return {
+    nome, nascimento: a.nascimento, sexo: ['F', 'M', 'O'].includes(a.sexo) ? a.sexo : null,
+    telefone: limpar(a.telefone), cpf: limpar(a.cpf),
+    // Casal/família moram juntos: os acompanhantes usam o endereço do titular
+    endereco: limpar(a.endereco) ?? titular?.endereco ?? null, bairro: limpar(a.bairro) ?? titular?.bairro ?? null, cidade: limpar(a.cidade) ?? titular?.cidade ?? null,
+    responsavel: limpar(a.responsavel), parentesco_responsavel: limpar(a.parentesco_responsavel),
+    telefone_responsavel: limpar(a.telefone_responsavel), email_responsavel: limpar(a.email_responsavel)?.toLowerCase() ?? null,
+    contato_emergencia: limpar(a.contato_emergencia), observacoes_saude: limpar(a.observacoes_saude),
+    ja_jogou: simNao(a.ja_jogou), nivel: ['iniciante', 'intermediario', 'avancado'].includes(a.nivel) ? a.nivel : 'iniciante',
+    turma_id: a.turma_id,
+  };
+}
+
 app.post('/api/matricula', rota(async (req, res) => {
   const b = req.body || {};
-  const nome = limpar(b.nome), email = limpar(b.email)?.toLowerCase();
-  if (!nome || nome.length < 3) throw falha(400, 'Informe o nome completo.');
+  const email = limpar(b.email)?.toLowerCase();
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw falha(400, 'Informe um e-mail válido.');
   if (!b.senha || String(b.senha).length < 6) throw falha(400, 'A senha deve ter pelo menos 6 caracteres.');
-  if (!limpar(b.telefone)) throw falha(400, 'Informe um telefone/WhatsApp.');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(b.nascimento || '')) throw falha(400, 'Informe a data de nascimento.');
+  const imagem = simNao(b.autoriza_imagem);
+  if (imagem === null) throw falha(400, 'Responda se autoriza o uso de imagem.');
   if (!b.aceite) throw falha(400, 'É necessário aceitar os termos da escolinha.');
   if (await db.get('SELECT 1 FROM users WHERE email = ?', email)) throw falha(409, 'Este e-mail já está cadastrado. Faça login.');
-  if (calcIdade(b.nascimento) < 18 && !limpar(b.responsavel)) throw falha(400, 'Para menores de 18 anos, informe o responsável.');
 
-  const { plano, turma, dias } = await validarEscolha(b);
+  const plano = await db.get('SELECT * FROM planos WHERE id = ? AND ativo = 1', Number(b.plano_id) || 0);
+  if (!plano) throw falha(400, 'Escolha um plano válido.');
+  const lista = Array.isArray(b.alunos) ? b.alunos : [];
+  if (lista.length !== plano.pessoas)
+    throw falha(400, plano.pessoas > 1 ? `O ${plano.nome} precisa das informações de ${plano.pessoas} pessoas.` : 'Informe os dados do aluno.');
+  const alunos = [];
+  for (const [i, a] of lista.entries()) {
+    const d = dadosAluno(a || {}, i, alunos[0]);
+    alunos.push({ ...d, ...(await validarEscolha({ plano_id: plano.id, turma_id: d.turma_id, dias: b.dias })) });
+  }
+
   const cfg = await getConfig();
-  const nivel = ['iniciante', 'intermediario', 'avancado'].includes(b.nivel) ? b.nivel : 'iniciante';
-
   const userId = await transacao(async tx => {
-    const u = await tx.get(`INSERT INTO users (nome, email, senha_hash, telefone, nascimento, cpf, responsavel, telefone_responsavel, contato_emergencia, observacoes_saude)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, nome, email, hashSenha(String(b.senha)), limpar(b.telefone), b.nascimento,
-      limpar(b.cpf), limpar(b.responsavel), limpar(b.telefone_responsavel), limpar(b.contato_emergencia), limpar(b.observacoes_saude));
-    const m = await tx.get(`INSERT INTO matriculas (user_id, plano_id, turma_id, dias, nivel, dia_vencimento, data_inicio)
-      VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`, u.id, plano.id, turma.id, dias.join(','), nivel, Number(cfg.dia_vencimento) || 10, hoje());
-    // Primeira mensalidade vence em 3 dias
+    let titular = null;
+    for (const [i, a] of alunos.entries()) {
+      // Só o titular tem login; os demais recebem uma senha aleatória e não entram no sistema
+      const u = await tx.get(`INSERT INTO users (nome, email, senha_hash, telefone, nascimento, cpf, sexo, endereco, bairro, cidade, responsavel, parentesco_responsavel,
+          telefone_responsavel, email_responsavel, contato_emergencia, observacoes_saude, ja_jogou, autoriza_imagem)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+        a.nome, i === 0 ? email : null, hashSenha(i === 0 ? String(b.senha) : crypto.randomBytes(16).toString('hex')), a.telefone, a.nascimento, a.cpf, a.sexo,
+        a.endereco, a.bairro, a.cidade, a.responsavel, a.parentesco_responsavel, a.telefone_responsavel, a.email_responsavel,
+        a.contato_emergencia, a.observacoes_saude, a.ja_jogou, imagem);
+      const m = await tx.get(`INSERT INTO matriculas (user_id, plano_id, turma_id, dias, nivel, dia_vencimento, data_inicio, grupo_id, valor)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, u.id, plano.id, a.turma.id, a.dias.join(','), a.nivel, Number(cfg.dia_vencimento) || 10, hoje(),
+        titular?.matricula ?? null, titular ? 0 : null);
+      if (!titular) titular = { user: u.id, matricula: m.id };
+    }
+    if (alunos.length > 1) await tx.run('UPDATE matriculas SET grupo_id = id WHERE id = ?', titular.matricula);
+    // Primeira mensalidade (do plano inteiro, no nome do titular) vence em 3 dias
     await tx.run('INSERT INTO mensalidades (matricula_id, user_id, competencia, valor, vencimento) VALUES (?, ?, ?, ?, ?)',
-      m.id, u.id, competenciaAtual(), plano.preco, addDias(hoje(), 3));
-    return u.id;
+      titular.matricula, titular.user, competenciaAtual(), plano.preco, addDias(hoje(), 3));
+    return titular.user;
   });
 
   await criarSessao(req, res, userId);
@@ -253,10 +285,17 @@ const aluno = express.Router();
 aluno.use(exigirLogin, exigirAluno);
 
 function matriculaDo(userId) {
-  return db.get(`SELECT m.*, p.nome AS plano_nome, p.preco, p.dias_semana, t.nome AS turma_nome, t.horario_inicio, t.horario_fim, t.dias AS turma_dias
+  return db.get(`SELECT m.*, p.nome AS plano_nome, p.preco, p.dias_semana, p.tipo AS plano_tipo, p.pessoas, COALESCE(m.valor, p.preco) AS valor_mensal,
+      t.nome AS turma_nome, t.horario_inicio, t.horario_fim, t.dias AS turma_dias
     FROM matriculas m JOIN planos p ON p.id = m.plano_id JOIN turmas t ON t.id = m.turma_id
     WHERE m.user_id = ? ORDER BY m.id DESC LIMIT 1`, userId);
 }
+
+// Pessoas do mesmo plano casal/família (o titular primeiro)
+const grupoDa = mat => !mat?.grupo_id ? [] : db.all(`SELECT u.id, u.nome, t.nome AS turma, m.status, (m.id = m.grupo_id) AS titular
+  FROM matriculas m JOIN users u ON u.id = m.user_id JOIN turmas t ON t.id = m.turma_id WHERE m.grupo_id = ? ORDER BY (m.id = m.grupo_id) DESC, m.id`, mat.grupo_id);
+
+const CAMPOS_PERFIL = 'id, nome, email, telefone, nascimento, cpf, sexo, endereco, bairro, cidade, responsavel, parentesco_responsavel, telefone_responsavel, email_responsavel, contato_emergencia, observacoes_saude, ja_jogou, autoriza_imagem, criado_em';
 
 function proximasAulas(mat, qtd = 6) {
   if (!mat || mat.status !== 'ativa') return [];
@@ -279,7 +318,7 @@ const listarMensalidades = async userId =>
 
 aluno.get('/resumo', rota(async req => {
   const mat = await matriculaDo(req.user.id);
-  const perfil = await db.get('SELECT id, nome, email, telefone, nascimento, cpf, responsavel, telefone_responsavel, contato_emergencia, observacoes_saude, criado_em FROM users WHERE id = ?', req.user.id);
+  const perfil = await db.get(`SELECT ${CAMPOS_PERFIL} FROM users WHERE id = ?`, req.user.id);
   const mens = await listarMensalidades(req.user.id);
   const aberta = [...mens].reverse().find(m => ['pendente', 'atrasada', 'em_analise'].includes(m.status));
   const avisos = await db.all('SELECT * FROM avisos ORDER BY id DESC LIMIT 5');
@@ -287,7 +326,7 @@ aluno.get('/resumo', rota(async req => {
   const treinaHoje = mat?.status === 'ativa' && mat.dias.split(',').includes(diaSemana(hoje()));
   const cfg = await getConfig();
   return {
-    perfil, matricula: mat || null, proximas_aulas: proximasAulas(mat), mensalidade_aberta: aberta || null,
+    perfil, matricula: mat || null, grupo: await grupoDa(mat), proximas_aulas: proximasAulas(mat), mensalidade_aberta: aberta || null,
     em_atraso: mens.filter(m => m.status === 'atrasada').length,
     frequencia_30d: await frequencia(req.user.id, addDias(hoje(), -30)),
     frequencia_total: await frequencia(req.user.id, '0000-00-00'),
@@ -344,8 +383,10 @@ aluno.put('/perfil', rota(async req => {
   const b = req.body || {};
   const nome = limpar(b.nome);
   if (!nome || nome.length < 3) throw falha(400, 'Informe o nome completo.');
-  await db.run(`UPDATE users SET nome = ?, telefone = ?, responsavel = ?, telefone_responsavel = ?, contato_emergencia = ?, observacoes_saude = ? WHERE id = ?`,
-    nome, limpar(b.telefone), limpar(b.responsavel), limpar(b.telefone_responsavel), limpar(b.contato_emergencia), limpar(b.observacoes_saude), req.user.id);
+  await db.run(`UPDATE users SET nome = ?, telefone = ?, endereco = ?, bairro = ?, cidade = ?, responsavel = ?, parentesco_responsavel = ?, telefone_responsavel = ?,
+      email_responsavel = ?, contato_emergencia = ?, observacoes_saude = ?, autoriza_imagem = COALESCE(?, autoriza_imagem) WHERE id = ?`,
+    nome, limpar(b.telefone), limpar(b.endereco), limpar(b.bairro), limpar(b.cidade), limpar(b.responsavel), limpar(b.parentesco_responsavel),
+    limpar(b.telefone_responsavel), limpar(b.email_responsavel), limpar(b.contato_emergencia), limpar(b.observacoes_saude), simNao(b.autoriza_imagem), req.user.id);
   return { ok: true };
 }));
 
@@ -363,7 +404,9 @@ aluno.put('/plano', rota(async req => {
   const mat = await matriculaDo(req.user.id);
   if (!mat) throw falha(404, 'Matrícula não encontrada.');
   if (mat.status === 'cancelada') throw falha(400, 'Matrícula cancelada. Fale com a escolinha para reativar.');
-  const { plano, turma, dias } = await validarEscolha(req.body || {}, mat.id);
+  if (mat.grupo_id) throw falha(400, 'Plano casal/família: fale com a escolinha para alterar.');
+  const { plano, turma, dias } = await validarEscolha(req.body || {});
+  if (plano.tipo !== 'individual') throw falha(400, 'Para mudar para o plano casal ou família, fale com a escolinha.');
   await db.run('UPDATE matriculas SET plano_id = ?, turma_id = ?, dias = ? WHERE id = ?', plano.id, turma.id, dias.join(','), mat.id);
   return { ok: true };
 }));
@@ -387,7 +430,7 @@ admin.get('/dashboard', rota(async () => {
   // Consultas independentes rodam em paralelo
   const [contagemRows, { v: mrr }, { n: novosMes }, { n: cancelMes }, totaisMens, receitaRows, todasMat, porPlano, ativasRows, turmas, nascimentos, freq, aniversariantes, ultimas, inadimplentes] = await Promise.all([
     db.all('SELECT status, COUNT(*) AS n FROM matriculas GROUP BY status'),
-    db.get(`SELECT COALESCE(SUM(p.preco), 0) AS v FROM matriculas m JOIN planos p ON p.id = m.plano_id WHERE m.status = 'ativa'`),
+    db.get(`SELECT COALESCE(SUM(COALESCE(m.valor, p.preco)), 0) AS v FROM matriculas m JOIN planos p ON p.id = m.plano_id WHERE m.status = 'ativa'`),
     db.get('SELECT COUNT(*) AS n FROM matriculas WHERE data_inicio >= ?', inicioMes),
     db.get('SELECT COUNT(*) AS n FROM matriculas WHERE cancelado_em >= ?', inicioMes),
     db.get(`SELECT
@@ -405,8 +448,9 @@ admin.get('/dashboard', rota(async () => {
         COALESCE(SUM(CASE WHEN status != 'cancelada' THEN valor END), 0) AS previsto
       FROM mensalidades WHERE competencia >= ? GROUP BY competencia`, meses[0]),
     db.all('SELECT data_inicio, cancelado_em, status FROM matriculas'),
-    db.all(`SELECT p.nome, p.dias_semana, p.preco, COUNT(m.id) AS alunos, COALESCE(SUM(CASE WHEN m.id IS NOT NULL THEN p.preco END), 0) AS receita
-      FROM planos p LEFT JOIN matriculas m ON m.plano_id = p.id AND m.status = 'ativa' GROUP BY p.id ORDER BY p.dias_semana`),
+    db.all(`SELECT p.nome, p.dias_semana, p.preco, p.tipo, COUNT(m.id) AS alunos, COALESCE(SUM(COALESCE(m.valor, p.preco)), 0) AS receita
+      FROM planos p LEFT JOIN matriculas m ON m.plano_id = p.id AND m.status = 'ativa' WHERE p.ativo = 1 OR m.id IS NOT NULL
+      GROUP BY p.id ORDER BY p.tipo DESC, p.pessoas, p.dias_semana`),
     db.all(`SELECT turma_id, dias, nivel FROM matriculas WHERE status = 'ativa'`),
     db.all('SELECT * FROM turmas WHERE ativo = 1 ORDER BY horario_inicio, nome'),
     db.all(`SELECT u.nascimento FROM users u JOIN matriculas m ON m.user_id = u.id WHERE m.status = 'ativa' AND u.nascimento IS NOT NULL`),
@@ -492,7 +536,7 @@ admin.get('/alunos', rota(async req => {
   if (Number(turma)) { filtros.push('t.id = ?'); params.push(Number(turma)); }
   if (Number(plano)) { filtros.push('p.id = ?'); params.push(Number(plano)); }
   return db.all(`SELECT u.id, u.nome, u.email, u.telefone, u.nascimento, m.id AS matricula_id, m.status, m.dias, m.nivel, m.data_inicio,
-      p.id AS plano_id, p.nome AS plano, p.preco, t.id AS turma_id, t.nome AS turma,
+      p.id AS plano_id, p.nome AS plano, COALESCE(m.valor, p.preco) AS preco, m.grupo_id, t.id AS turma_id, t.nome AS turma,
       (SELECT COUNT(*) FROM mensalidades ms WHERE ms.user_id = u.id AND ms.status = 'pendente' AND ms.vencimento < ?) AS atrasadas
     FROM users u JOIN matriculas m ON m.user_id = u.id JOIN planos p ON p.id = m.plano_id JOIN turmas t ON t.id = m.turma_id
     WHERE u.role = 'aluno' ${filtros.map(f => 'AND ' + f).join(' ')}
@@ -500,12 +544,12 @@ admin.get('/alunos', rota(async req => {
 }));
 
 admin.get('/alunos/:id', rota(async req => {
-  const u = await db.get(`SELECT id, nome, email, telefone, nascimento, cpf, responsavel, telefone_responsavel, contato_emergencia, observacoes_saude, criado_em
-    FROM users WHERE id = ? AND role = 'aluno'`, Number(req.params.id) || 0);
+  const u = await db.get(`SELECT ${CAMPOS_PERFIL} FROM users WHERE id = ? AND role = 'aluno'`, Number(req.params.id) || 0);
   if (!u) throw falha(404, 'Aluno não encontrado.');
+  const matricula = await matriculaDo(u.id);
   return {
     aluno: { ...u, idade: u.nascimento ? calcIdade(u.nascimento) : null },
-    matricula: await matriculaDo(u.id),
+    matricula, grupo: await grupoDa(matricula),
     mensalidades: await listarMensalidades(u.id),
     presencas: await db.all('SELECT data, presente, origem FROM presencas WHERE user_id = ? ORDER BY data DESC LIMIT 30', u.id),
     frequencia_30d: await frequencia(u.id, addDias(hoje(), -30)),
@@ -518,8 +562,7 @@ admin.put('/alunos/:id/matricula', rota(async req => {
   const b = req.body || {};
   const status = ['ativa', 'trancada', 'cancelada'].includes(b.status) ? b.status : mat.status;
   const reativando = status === 'ativa' && mat.status !== 'ativa';
-  const escolha = await validarEscolha({ plano_id: b.plano_id ?? mat.plano_id, turma_id: b.turma_id ?? mat.turma_id, dias: b.dias ?? mat.dias.split(',') },
-    status === 'ativa' ? mat.id : null);
+  const escolha = await validarEscolha({ plano_id: b.plano_id ?? mat.plano_id, turma_id: b.turma_id ?? mat.turma_id, dias: b.dias ?? mat.dias.split(',') });
   const nivel = ['iniciante', 'intermediario', 'avancado'].includes(b.nivel) ? b.nivel : mat.nivel;
   const venc = Math.min(28, Math.max(1, Number(b.dia_vencimento) || mat.dia_vencimento));
   const canceladoEm = status === 'cancelada' ? (mat.cancelado_em || hoje()) : null;
@@ -540,9 +583,12 @@ admin.delete('/alunos/:id', rota(async req => {
 }));
 
 admin.get('/alunos.csv', rota(async (req, res) => {
-  const rows = await db.all(`SELECT u.nome, u.email, u.telefone, u.nascimento, u.responsavel, u.telefone_responsavel, m.status, p.nome AS plano, p.preco, t.nome AS turma, m.dias, m.nivel, m.data_inicio
+  const rows = await db.all(`SELECT u.nome, u.email, u.telefone, u.nascimento, u.sexo, u.cpf, u.endereco, u.bairro, u.cidade, u.responsavel, u.parentesco_responsavel,
+      u.telefone_responsavel, u.email_responsavel, CASE u.autoriza_imagem WHEN 1 THEN 'sim' WHEN 0 THEN 'não' END AS uso_imagem, u.observacoes_saude,
+      m.status, p.nome AS plano, COALESCE(m.valor, p.preco) AS preco, t.nome AS turma, m.dias, m.nivel, m.data_inicio
     FROM users u JOIN matriculas m ON m.user_id = u.id JOIN planos p ON p.id = m.plano_id JOIN turmas t ON t.id = m.turma_id WHERE u.role = 'aluno' ORDER BY u.nome`);
-  const cols = ['nome', 'email', 'telefone', 'nascimento', 'responsavel', 'telefone_responsavel', 'status', 'plano', 'preco', 'turma', 'dias', 'nivel', 'data_inicio'];
+  const cols = ['nome', 'email', 'telefone', 'nascimento', 'sexo', 'cpf', 'endereco', 'bairro', 'cidade', 'responsavel', 'parentesco_responsavel', 'telefone_responsavel',
+    'email_responsavel', 'uso_imagem', 'observacoes_saude', 'status', 'plano', 'preco', 'turma', 'dias', 'nivel', 'data_inicio'];
   const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const csv = '﻿' + [cols.join(';'), ...rows.map(r => cols.map(c => esc(r[c])).join(';'))].join('\r\n');
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
@@ -635,7 +681,7 @@ admin.put('/turmas/:id', rota(async req => {
   return { ok: true };
 }));
 
-admin.get('/planos', rota(() => db.all('SELECT * FROM planos ORDER BY dias_semana')));
+admin.get('/planos', rota(() => db.all('SELECT * FROM planos ORDER BY tipo DESC, pessoas, dias_semana')));
 admin.put('/planos/:id', rota(async req => {
   const preco = Number(req.body?.preco);
   if (!(preco > 0)) throw falha(400, 'Preço inválido.');

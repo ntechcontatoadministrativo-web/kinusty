@@ -86,6 +86,8 @@ function abrirPagamento(m) {
   };
 }
 
+const valorPlano = mat => !mat ? '–' : mat.grupo_id && !mat.valor_mensal ? 'pago pelo titular do plano' : `${moeda(mat.valor_mensal)}/mês`;
+
 // ---------- Abas ----------
 const abas = {
   async inicio() {
@@ -102,7 +104,7 @@ const abas = {
       ${mat && mat.status !== 'ativa' ? `<div class="erro-msg">Sua matrícula está <strong>${ROTULO_STATUS[mat.status]}</strong>. Fale com a escolinha para reativar.</div>` : ''}
 
       <div class="kpis">
-        <div class="kpi destaque"><div class="rotulo">Plano</div><div class="valor">${mat?.dias_semana ?? '–'}x/sem</div><div class="sub">${moeda(mat?.preco)}/mês</div></div>
+        <div class="kpi destaque"><div class="rotulo">Plano</div><div class="valor">${mat?.dias_semana ?? '–'}x/sem</div><div class="sub">${valorPlano(mat)}</div></div>
         <div class="kpi"><div class="rotulo">Status</div><div class="valor" style="font-size:1.2rem;margin:.6rem 0">${mat ? badge(mat.status) : '–'}</div><div class="sub">Aluno desde ${dataBR(mat?.data_inicio)}</div></div>
         <div class="kpi"><div class="rotulo">Frequência (30 dias)</div><div class="valor">${r.frequencia_30d.taxa ?? '–'}${r.frequencia_30d.taxa !== null ? '%' : ''}</div><div class="sub">${r.frequencia_30d.presentes} presenças em ${r.frequencia_30d.total} aulas</div></div>
         <div class="kpi"><div class="rotulo">Próxima mensalidade</div>
@@ -181,19 +183,25 @@ const abas = {
   async plano() {
     const [info] = await Promise.all([api('/api/publico/info'), carregarResumo()]);
     const mat = resumo.matricula;
-    conteudo.innerHTML = `${topo('Meu plano', 'Altere seu plano, turma ou dias de treino')}
+    // Planos casal/família só são alterados pela escolinha
+    const emGrupo = !!mat.grupo_id;
+    conteudo.innerHTML = `${topo('Meu plano', emGrupo ? 'Seu plano em grupo' : 'Altere seu plano, turma ou dias de treino')}
       <div class="grid-dash">
-        <div class="card">
+        ${emGrupo ? `<div class="card">
+          <h3>Pessoas no plano</h3>
+          <ul class="lista">${resumo.grupo.map(g => `<li><div><strong>${esc(g.nome)}</strong><div class="sec">${esc(g.turma)}</div></div>${g.titular ? '<span class="badge b-ativa">Titular</span>' : ''}</li>`).join('')}</ul>
+          <p class="muted" style="font-size:.9rem">Para mudar o plano, os dias ou as pessoas do grupo, fale com a escolinha.</p>
+        </div>` : `<div class="card">
           <h3>Alterar plano</h3>
           <p class="muted" style="margin-top:0;font-size:.9rem">A mudança de valor passa a valer na próxima mensalidade gerada.</p>
           <div id="seletor"></div>
           <button class="btn btn-gold" id="salvar-plano">Salvar alterações</button>
-        </div>
+        </div>`}
         <div class="card">
           <h3>Plano atual</h3>
           <div class="resumo-box">
             <div><span>Plano</span><strong>${esc(mat.plano_nome)}</strong></div>
-            <div><span>Valor</span><strong class="gold">${moeda(mat.preco)}</strong></div>
+            <div><span>Valor</span><strong class="gold">${valorPlano(mat)}</strong></div>
             <div><span>Turma</span><strong>${esc(mat.turma_nome)}</strong></div>
             <div><span>Horário</span><strong>${mat.horario_inicio}–${mat.horario_fim}</strong></div>
             <div><span>Dias</span><strong>${diasTexto(mat.dias)}</strong></div>
@@ -203,7 +211,9 @@ const abas = {
           <p class="muted mt" style="font-size:.85rem">Precisa trancar ou cancelar? <a target="_blank" rel="noopener" href="${linkWhats(resumo.whatsapp, 'Olá! Gostaria de falar sobre a minha matrícula na Kinusty.')}">Fale com a escolinha</a>.</p>
         </div>
       </div>`;
-    const sel = seletorPlano(document.getElementById('seletor'), info, { plano_id: mat.plano_id, turma_id: mat.turma_id, dias: mat.dias.split(',') });
+    if (emGrupo) return;
+    const individuais = { ...info, planos: info.planos.filter(p => p.tipo === 'individual') };
+    const sel = seletorPlano(document.getElementById('seletor'), individuais, { plano_id: mat.plano_id, turma_id: mat.turma_id, dias: mat.dias.split(',') });
     document.getElementById('salvar-plano').onclick = async () => {
       const erro = sel.valido();
       if (erro) return toast(erro, 'erro');
@@ -230,10 +240,21 @@ const abas = {
             <div class="campo"><label>Data de nascimento</label><input value="${dataBR(p.nascimento)}" disabled></div>
             <div class="campo"><label>WhatsApp</label><input name="telefone" value="${esc(p.telefone || '')}"></div>
             <div class="campo"><label>Contato de emergência</label><input name="contato_emergencia" value="${esc(p.contato_emergencia || '')}"></div>
+          </div>
+          <div class="campo"><label>Endereço</label><input name="endereco" value="${esc(p.endereco || '')}"></div>
+          <div class="grid-2">
+            <div class="campo"><label>Bairro</label><input name="bairro" value="${esc(p.bairro || '')}"></div>
+            <div class="campo"><label>Cidade</label><input name="cidade" value="${esc(p.cidade || '')}"></div>
             <div class="campo"><label>Responsável</label><input name="responsavel" value="${esc(p.responsavel || '')}"></div>
+            <div class="campo"><label>Parentesco</label><input name="parentesco_responsavel" value="${esc(p.parentesco_responsavel || '')}"></div>
             <div class="campo"><label>Telefone do responsável</label><input name="telefone_responsavel" value="${esc(p.telefone_responsavel || '')}"></div>
+            <div class="campo"><label>E-mail do responsável</label><input name="email_responsavel" type="email" value="${esc(p.email_responsavel || '')}"></div>
           </div>
           <div class="campo"><label>Observações de saúde</label><textarea name="observacoes_saude">${esc(p.observacoes_saude || '')}</textarea></div>
+          <div class="campo"><label>Uso de imagem para divulgação da escolinha</label><select name="autoriza_imagem">
+            ${p.autoriza_imagem == null ? '<option value="">Não informado</option>' : ''}
+            <option value="sim" ${p.autoriza_imagem === 1 ? 'selected' : ''}>Autorizo</option>
+            <option value="nao" ${p.autoriza_imagem === 0 ? 'selected' : ''}>Não autorizo</option></select></div>
           <button class="btn btn-gold">Salvar</button>
         </form>
         <form class="card" id="f-senha" style="align-self:start">

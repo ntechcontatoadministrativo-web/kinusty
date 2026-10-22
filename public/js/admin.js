@@ -31,6 +31,10 @@ const eixos = (fmtY = v => v) => ({
   y: { beginAtZero: true, grid: { color: COR.grade }, border: { display: false }, ticks: { callback: fmtY, maxTicksLimit: 5 } },
 });
 
+const nomePlano = p => (p.nome || p).replace(/^Plano /, '');
+const SEXO = { F: 'Feminino', M: 'Masculino', O: 'Outro' };
+const simNaoTxt = v => v === 1 ? 'Sim' : v === 0 ? 'Não' : '—';
+
 // ---------- Abas ----------
 const abas = {
   async dashboard() {
@@ -76,7 +80,7 @@ const abas = {
         </div>
         <div class="card">
           <div class="card-head"><h3>Alunos por plano</h3></div>
-          <ul class="lista">${d.por_plano.map(p => `<li><div><strong>${p.dias_semana}x por semana</strong><div class="sec">${moeda(p.preco)}/mês</div></div>
+          <ul class="lista">${d.por_plano.map(p => `<li><div><strong>${esc(nomePlano(p))}</strong><div class="sec">${moeda(p.preco)}/mês</div></div>
             <div style="text-align:right"><strong>${p.alunos} alunos</strong><div class="sec">${moeda(p.receita)}/mês</div></div></li>`).join('')}</ul>
           <div class="grafico baixo mt"><canvas id="g-planos"></canvas></div>
         </div>
@@ -142,7 +146,7 @@ const abas = {
     });
     grafico('g-planos', {
       type: 'bar',
-      data: { labels: d.por_plano.map(p => `${p.dias_semana}x/sem`), datasets: [{ label: 'Faturamento mensal', data: d.por_plano.map(p => p.receita), backgroundColor: COR.goldFill, hoverBackgroundColor: COR.gold, borderRadius: 4, borderSkipped: 'start', maxBarThickness: 26 }] },
+      data: { labels: d.por_plano.map(nomePlano), datasets: [{ label: 'Faturamento mensal', data: d.por_plano.map(p => p.receita), backgroundColor: COR.goldFill, hoverBackgroundColor: COR.gold, borderRadius: 4, borderSkipped: 'start', maxBarThickness: 26 }] },
       options: {
         indexAxis: 'y', maintainAspectRatio: false,
         plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${moeda(c.parsed.x)}/mês` } } },
@@ -166,7 +170,7 @@ const abas = {
         <input type="search" id="f-busca" placeholder="Buscar por nome, e-mail ou telefone...">
         <select id="f-status"><option value="">Todos os status</option><option value="ativa">Ativos</option><option value="trancada">Trancados</option><option value="cancelada">Cancelados</option></select>
         <select id="f-turma"><option value="">Todas as turmas</option>${info.turmas.map(t => `<option value="${t.id}">${esc(t.nome)}</option>`).join('')}</select>
-        <select id="f-plano"><option value="">Todos os planos</option>${info.planos.map(p => `<option value="${p.id}">${p.dias_semana}x/sem</option>`).join('')}</select>
+        <select id="f-plano"><option value="">Todos os planos</option>${info.planos.map(p => `<option value="${p.id}">${esc(nomePlano(p))}</option>`).join('')}</select>
       </div>
       <div class="card"><div class="tabela-wrap" id="tabela-alunos"></div></div>`;
     if (filtroInicial.status) document.getElementById('f-status').value = filtroInicial.status;
@@ -179,7 +183,7 @@ const abas = {
         <tbody>${lista.map(a => `<tr>
           <td><div class="flex" style="flex-wrap:nowrap"><div class="avatar" style="width:32px;height:32px;font-size:.75rem">${iniciais(a.nome)}</div>
             <div><strong>${esc(a.nome)}</strong><div class="muted" style="font-size:.8rem">${esc(a.telefone || a.email)}</div></div></div></td>
-          <td>${esc(a.turma)}</td><td>${a.plano.replace('Plano ', '')} <div class="muted" style="font-size:.8rem">${moeda(a.preco)}</div></td>
+          <td>${esc(a.turma)}</td><td>${esc(nomePlano(a.plano))} <div class="muted" style="font-size:.8rem">${a.grupo_id && !a.preco ? 'no plano do titular' : moeda(a.preco)}</div></td>
           <td>${diasTexto(a.dias)}</td><td>${badge(a.status)}</td>
           <td>${a.atrasadas ? `<span class="badge b-atrasada">${a.atrasadas} em atraso</span>` : '<span class="badge b-paga">Em dia</span>'}</td>
           <td class="num"><button class="btn btn-sm" onclick="verAluno(${a.id})">Abrir</button></td></tr>`).join('') || '<tr><td colspan="7" class="vazio">Nenhum aluno encontrado.</td></tr>'}</tbody>
@@ -278,7 +282,7 @@ const abas = {
     conteudo.innerHTML = `${topo('Turmas e planos', '', `<button class="btn btn-gold btn-sm" id="nova-turma">+ Nova turma</button>`)}
       <div class="card" style="margin-bottom:1rem"><h3>Planos e valores</h3>
         <div class="tabela-wrap"><table><thead><tr><th>Plano</th><th>Dias/semana</th><th>Preço mensal</th><th>Ativo</th><th></th></tr></thead>
-        <tbody>${planos.map(p => `<tr data-plano="${p.id}"><td><input value="${esc(p.nome)}" data-k="nome"></td><td>${p.dias_semana}x</td>
+        <tbody>${planos.map(p => `<tr data-plano="${p.id}"><td><input value="${esc(p.nome)}" data-k="nome"></td><td>${p.dias_semana}x${p.dias_fixos ? ` (${diasTexto(p.dias_fixos)})` : ''}${p.pessoas > 1 ? ` · ${p.pessoas} pessoas` : ''}</td>
           <td><input type="number" step="0.01" min="1" value="${p.preco}" data-k="preco" style="max-width:130px"></td>
           <td><input type="checkbox" ${p.ativo ? 'checked' : ''} data-k="ativo" style="width:auto;accent-color:var(--gold)"></td>
           <td class="num"><button class="btn btn-sm btn-outline" data-salvar-plano>Salvar</button></td></tr>`).join('')}</tbody></table></div>
@@ -430,15 +434,21 @@ async function verAluno(id) {
       <span class="muted" style="font-size:.85rem">Frequência 30d: <strong>${r.frequencia_30d.taxa ?? '–'}${r.frequencia_30d.taxa !== null ? '%' : ''}</strong></span>
     </div>
     <div class="grid-2" style="font-size:.9rem;margin-bottom:1rem">
-      <div><span class="muted">E-mail:</span> ${esc(a.email)}</div><div><span class="muted">Telefone:</span> ${esc(a.telefone || '—')}</div>
-      <div><span class="muted">Nascimento:</span> ${dataBR(a.nascimento)}</div><div><span class="muted">CPF:</span> ${esc(a.cpf || '—')}</div>
-      <div><span class="muted">Responsável:</span> ${esc(a.responsavel || '—')} ${esc(a.telefone_responsavel || '')}</div><div><span class="muted">Emergência:</span> ${esc(a.contato_emergencia || '—')}</div>
+      <div><span class="muted">E-mail:</span> ${esc(a.email || 'sem login (plano em grupo)')}</div><div><span class="muted">Telefone:</span> ${esc(a.telefone || '—')}</div>
+      <div><span class="muted">Nascimento:</span> ${dataBR(a.nascimento)}</div><div><span class="muted">Sexo:</span> ${SEXO[a.sexo] || '—'}</div>
+      <div><span class="muted">RG/CPF:</span> ${esc(a.cpf || '—')}</div><div><span class="muted">Emergência:</span> ${esc(a.contato_emergencia || '—')}</div>
+      <div style="grid-column:1/-1"><span class="muted">Endereço:</span> ${esc([a.endereco, a.bairro, a.cidade].filter(Boolean).join(' — ') || '—')}</div>
+      ${a.responsavel ? `<div style="grid-column:1/-1"><span class="muted">Responsável:</span> ${esc(a.responsavel)}${a.parentesco_responsavel ? ` (${esc(a.parentesco_responsavel)})` : ''} · ${esc(a.telefone_responsavel || '')}${a.email_responsavel ? ` · ${esc(a.email_responsavel)}` : ''}</div>` : ''}
+      <div><span class="muted">Já praticou vôlei:</span> ${simNaoTxt(a.ja_jogou)}</div>
+      <div><span class="muted">Uso de imagem:</span> ${a.autoriza_imagem === 1 ? '<span class="badge b-paga">Autorizado</span>' : a.autoriza_imagem === 0 ? '<span class="badge b-atrasada">Não autorizado</span>' : '—'}</div>
       ${a.observacoes_saude ? `<div style="grid-column:1/-1"><span class="muted">Saúde:</span> <span class="gold">${esc(a.observacoes_saude)}</span></div>` : ''}
+      ${r.grupo.length ? `<div style="grid-column:1/-1"><span class="muted">${esc(nomePlano(m.plano_nome))}:</span> ${r.grupo.map(g => g.id === a.id ? `<strong>${esc(g.nome)}</strong>` : `<a href="#" onclick="verAluno(${g.id});return false">${esc(g.nome)}</a>`).join(', ')}
+        <span class="muted">· mensalidade no nome do titular (${esc(r.grupo[0].nome)})</span></div>` : ''}
     </div>
     <form id="f-mat" class="card" style="background:var(--bg-2)"><h3>Matrícula</h3>
       <div class="grid-3">
         <div class="campo"><label>Status</label><select name="status">${['ativa', 'trancada', 'cancelada'].map(s => `<option value="${s}" ${m.status === s ? 'selected' : ''}>${ROTULO_STATUS[s]}</option>`).join('')}</select></div>
-        <div class="campo"><label>Plano</label><select name="plano_id">${info.planos.map(p => `<option value="${p.id}" ${p.id === m.plano_id ? 'selected' : ''}>${p.dias_semana}x — ${moeda(p.preco)}</option>`).join('')}</select></div>
+        <div class="campo"><label>Plano</label><select name="plano_id">${info.planos.map(p => `<option value="${p.id}" ${p.id === m.plano_id ? 'selected' : ''}>${esc(nomePlano(p))} — ${moeda(p.preco)}</option>`).join('')}</select></div>
         <div class="campo"><label>Turma</label><select name="turma_id">${info.turmas.map(t => `<option value="${t.id}" ${t.id === m.turma_id ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></div>
         <div class="campo"><label>Nível</label><select name="nivel">${Object.entries(NIVEIS).map(([k, v]) => `<option value="${k}" ${m.nivel === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
         <div class="campo"><label>Dia de vencimento</label><input type="number" min="1" max="28" name="dia_vencimento" value="${m.dia_vencimento}"></div>

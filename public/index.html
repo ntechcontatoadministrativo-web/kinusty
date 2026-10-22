@@ -53,6 +53,7 @@
         <p>Mensalidade fixa, sem taxa de matrícula. Escolha quantos dias por semana quer treinar.</p>
       </div>
       <div class="planos" id="lista-planos"></div>
+      <div class="planos grupo" id="lista-planos-grupo"></div>
     </div>
   </section>
 
@@ -112,7 +113,7 @@
       4: ['Treine todos os dias de aula', 'Máxima evolução', 'Acesso à área do aluno', 'Prioridade em torneios'],
     };
     api('/api/publico/info').then(info => {
-      document.getElementById('lista-planos').innerHTML = info.planos.map(p => `
+      document.getElementById('lista-planos').innerHTML = info.planos.filter(p => p.tipo === 'individual').map(p => `
         <div class="plano ${p.dias_semana === 3 ? 'destaque' : ''}">
           ${p.dias_semana === 3 ? '<span class="selo">MAIS ESCOLHIDO</span>' : ''}
           <h3>${esc(p.nome)}</h3>
@@ -121,6 +122,21 @@
           <ul>${(BENEFICIOS[p.dias_semana] || []).map(b => `<li>${b}</li>`).join('')}</ul>
           <a class="btn ${p.dias_semana === 3 ? 'btn-gold' : 'btn-outline'} btn-block" href="/matricula.html?plano=${p.id}">Escolher plano</a>
         </div>`).join('');
+
+      const GRUPOS = {
+        casal: { titulo: 'Plano Casal', rotulo: p => `${p.dias_semana}x na semana`, itens: ['Valor para os dois', 'Os dois treinam nos mesmos dias', 'Inscrição com os dados de ambos'] },
+        familia: { titulo: 'Plano Família', rotulo: p => `${p.pessoas} pessoas`, itens: ['Terça e quinta (horário do Kids)', 'Valor pelo número de pessoas', 'Cada um na sua turma'] },
+      };
+      document.getElementById('lista-planos-grupo').innerHTML = Object.entries(GRUPOS).map(([tipo, g]) => {
+        const lista = info.planos.filter(p => p.tipo === tipo);
+        if (!lista.length) return '';
+        return `<div class="plano">
+          <div class="dias">${g.titulo}</div>
+          <div class="precos">${lista.map(p => `<div><span>${g.rotulo(p)}</span><strong>${moeda(p.preco)}/mês</strong></div>`).join('')}</div>
+          <ul>${g.itens.map(b => `<li>${b}</li>`).join('')}</ul>
+          <a class="btn btn-outline btn-block" href="/matricula.html?tipo=${tipo}">Escolher plano</a>
+        </div>`;
+      }).join('');
 
       document.getElementById('lista-turmas').innerHTML = info.turmas.map(t => `
         <div class="horario">

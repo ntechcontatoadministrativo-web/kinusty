@@ -161,6 +161,27 @@ CREATE TABLE IF NOT EXISTS config (
 
 ALTER TABLE mensalidades ADD COLUMN IF NOT EXISTS mp_payment_id TEXT;
 
+-- Campos da ficha de inscrição
+ALTER TABLE users ADD COLUMN IF NOT EXISTS sexo TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS endereco TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS bairro TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS cidade TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS parentesco_responsavel TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_responsavel TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ja_jogou INTEGER;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS autoriza_imagem INTEGER;
+-- Acompanhantes de plano casal/família não precisam de e-mail (não fazem login)
+ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+
+-- Planos em grupo: tipo (individual/casal/familia), quantas pessoas e dias obrigatórios
+ALTER TABLE planos ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'individual';
+ALTER TABLE planos ADD COLUMN IF NOT EXISTS pessoas INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE planos ADD COLUMN IF NOT EXISTS dias_fixos TEXT;
+
+-- grupo_id = matrícula do titular (quem paga); valor = 0 para os acompanhantes (NULL usa o preço do plano)
+ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS grupo_id INTEGER;
+ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS valor DOUBLE PRECISION;
+
 CREATE INDEX IF NOT EXISTS idx_mens_user ON mensalidades(user_id);
 CREATE INDEX IF NOT EXISTS idx_mens_comp ON mensalidades(competencia);
 CREATE INDEX IF NOT EXISTS idx_pres_data ON presencas(data);
@@ -174,6 +195,20 @@ async function inicializar() {
   if (!(await db.get('SELECT COUNT(*) AS n FROM planos')).n) {
     for (const [nome, dias, preco] of [['Plano 2x na semana', 2, 150], ['Plano 3x na semana', 3, 200], ['Plano 4x na semana', 4, 230]])
       await db.run('INSERT INTO planos (nome, dias_semana, preco) VALUES (?, ?, ?)', nome, dias, preco);
+  }
+
+  // Plano casal: valor total para os dois. Plano família: só terça e quinta (horário do Kids), valor pelo nº de pessoas.
+  if (!(await db.get("SELECT COUNT(*) AS n FROM planos WHERE tipo != 'individual'")).n) {
+    const grupo = [
+      ['Plano Casal 2x na semana', 2, 280, 'casal', 2, null],
+      ['Plano Casal 3x na semana', 3, 370, 'casal', 2, null],
+      ['Plano Casal 4x na semana', 4, 420, 'casal', 2, null],
+      ['Plano Família — 2 pessoas', 2, 270, 'familia', 2, 'ter,qui'],
+      ['Plano Família — 3 pessoas', 2, 405, 'familia', 3, 'ter,qui'],
+      ['Plano Família — 4 pessoas', 2, 540, 'familia', 4, 'ter,qui'],
+    ];
+    for (const p of grupo)
+      await db.run('INSERT INTO planos (nome, dias_semana, preco, tipo, pessoas, dias_fixos) VALUES (?, ?, ?, ?, ?, ?)', ...p);
   }
 
   if (!(await db.get('SELECT COUNT(*) AS n FROM turmas')).n) {

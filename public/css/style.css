@@ -158,6 +158,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .plano ul { list-style: none; padding: 0; margin: 0 0 1.5rem; color: var(--text-2); font-size: .92rem; flex: 1; }
 .plano li { padding: .4em 0; display: flex; gap: .6em; }
 .plano li::before { content: '✓'; color: var(--gold); font-weight: 700; }
+.planos.grupo { grid-template-columns: repeat(2, 1fr); margin-top: 1.5rem; }
+.plano .precos { margin: 1rem 0; }
+.plano .precos div { display: flex; justify-content: space-between; padding: .35em 0; border-bottom: 1px solid var(--line); }
+.plano .precos strong { color: var(--gold); }
 
 .horarios { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.2rem; }
 .horario { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.4rem; border-top: 3px solid var(--gold); }
@@ -209,6 +213,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .resumo-box { background: var(--bg-2); border: 1px dashed var(--gold-2); border-radius: 14px; padding: 1.2rem; }
 .resumo-box div { display: flex; justify-content: space-between; padding: .3em 0; gap: 1rem; }
 .resumo-box div span:first-child { color: var(--muted); }
+.pessoa { border: 1px solid var(--line); border-radius: 14px; padding: 1.2rem; margin-bottom: 1.2rem; }
+.pessoa > h3 { margin: 0 0 1rem; font-size: 1rem; }
+.pessoa > h3 small { color: var(--muted); font-weight: 400; }
+.opcoes-linha { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; padding: .3em 0; }
+.regras { font-size: .85rem; color: var(--text-2); margin: .4rem 0 0; padding-left: 1.2rem; }
 .erro-msg { background: rgba(239, 93, 93, .12); color: var(--bad); border-radius: 10px; padding: .7em 1em; font-size: .9rem; margin-bottom: 1rem; }
 
 /* =====================================================
@@ -290,7 +299,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   .hero p { margin-inline: auto; }
   .hero-stats, .hero .flex { justify-content: center; }
   .hero-logo { width: 220px; order: -1; }
-  .planos { grid-template-columns: 1fr; max-width: 420px; margin-inline: auto; }
+  .planos, .planos.grupo { grid-template-columns: 1fr; max-width: 420px; margin-inline: auto; }
   .app { grid-template-columns: 1fr; }
   .lateral { position: fixed; left: 0; top: 0; width: 270px; z-index: 300; transform: translateX(-100%); transition: transform .25s; }
   .lateral.aberta { transform: none; box-shadow: var(--shadow); }
