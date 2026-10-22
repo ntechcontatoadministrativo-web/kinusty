@@ -442,6 +442,12 @@ async function verAluno(id) {
       <div><span class="muted">Já praticou vôlei:</span> ${simNaoTxt(a.ja_jogou)}</div>
       <div><span class="muted">Uso de imagem:</span> ${a.autoriza_imagem === 1 ? '<span class="badge b-paga">Autorizado</span>' : a.autoriza_imagem === 0 ? '<span class="badge b-atrasada">Não autorizado</span>' : '—'}</div>
       ${a.observacoes_saude ? `<div style="grid-column:1/-1"><span class="muted">Saúde:</span> <span class="gold">${esc(a.observacoes_saude)}</span></div>` : ''}
+      <div style="grid-column:1/-1" id="indicacao"><span class="muted">Indicado por:</span>
+        ${r.indicado_por ? `<a href="#" onclick="verAluno(${r.indicado_por.id});return false">${esc(r.indicado_por.nome)}</a>` : esc(a.indicado_por || '—')}
+        ${a.indicado_por && !r.indicado_por ? '<span class="badge b-em_analise">a confirmar</span>' : ''}
+        <button type="button" class="btn btn-ghost btn-sm" id="ligar-indicacao">${r.indicado_por ? 'Alterar' : 'Confirmar aluno'}</button></div>
+      ${r.indicados.length ? `<div style="grid-column:1/-1"><span class="muted">Indicou:</span> ${r.indicados.map(x => `<a href="#" onclick="verAluno(${x.id});return false">${esc(x.nome)}</a> ${x.status ? badge(x.status) : ''}`).join(', ')}
+        <span class="muted">· ${r.indicados.filter(x => x.status === 'ativa').length} ativo(s)</span></div>` : ''}
       ${r.grupo.length ? `<div style="grid-column:1/-1"><span class="muted">${esc(nomePlano(m.plano_nome))}:</span> ${r.grupo.map(g => g.id === a.id ? `<strong>${esc(g.nome)}</strong>` : `<a href="#" onclick="verAluno(${g.id});return false">${esc(g.nome)}</a>`).join(', ')}
         <span class="muted">· mensalidade no nome do titular (${esc(r.grupo[0].nome)})</span></div>` : ''}
     </div>
@@ -461,6 +467,21 @@ async function verAluno(id) {
       <tbody>${r.mensalidades.map(x => `<tr><td>${competenciaBR(x.competencia)}</td><td>${dataBR(x.vencimento)}</td><td class="num">${moeda(x.valor)}</td><td>${badge(x.status)}</td><td class="num" style="white-space:nowrap">${acoesMensalidade(x)}</td></tr>`).join('') || '<tr><td colspan="5" class="vazio">Sem mensalidades.</td></tr>'}</tbody></table></div>`);
 
   ligarAcoesMensalidade(box.querySelector('#mens-aluno'), () => verAluno(id));
+  // Confirma quem indicou: escolhe o aluno na lista (o texto digitado na matrícula serve de pista)
+  box.querySelector('#ligar-indicacao').onclick = async () => {
+    const alunos = (await api('/api/admin/alunos')).filter(x => x.id !== id);
+    const el = box.querySelector('#indicacao');
+    el.innerHTML = `<span class="muted">Indicado por${a.indicado_por ? ` (escreveu: "${esc(a.indicado_por)}")` : ''}:</span>
+      <div class="flex" style="margin-top:.4rem"><select id="sel-indicacao" style="max-width:320px"><option value="">Ninguém</option>
+        ${alunos.map(x => `<option value="${x.id}" ${x.id === r.indicado_por?.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select>
+        <button type="button" class="btn btn-gold btn-sm" id="salvar-indicacao">Salvar</button></div>`;
+    el.querySelector('#salvar-indicacao').onclick = async () => {
+      try {
+        await api(`/api/admin/alunos/${id}/indicacao`, { method: 'PUT', body: { indicado_por_id: el.querySelector('#sel-indicacao').value } });
+        toast('Indicação salva!'); verAluno(id);
+      } catch (err) { toast(err.message, 'erro'); }
+    };
+  };
   box.querySelector('#f-mat').onsubmit = async e => {
     e.preventDefault();
     const fd = new FormData(e.target);

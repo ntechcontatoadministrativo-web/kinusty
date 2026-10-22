@@ -170,6 +170,9 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS parentesco_responsavel TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_responsavel TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ja_jogou INTEGER;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS autoriza_imagem INTEGER;
+-- Indicação: o que o aluno escreveu na matrícula e o aluno que o admin confirmou
+ALTER TABLE users ADD COLUMN IF NOT EXISTS indicado_por TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS indicado_por_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
 -- Acompanhantes de plano casal/família não precisam de e-mail (não fazem login)
 ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
 

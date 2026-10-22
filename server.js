@@ -240,11 +240,11 @@ app.post('/api/matricula', rota(async (req, res) => {
     for (const [i, a] of alunos.entries()) {
       // Só o titular tem login; os demais recebem uma senha aleatória e não entram no sistema
       const u = await tx.get(`INSERT INTO users (nome, email, senha_hash, telefone, nascimento, cpf, sexo, endereco, bairro, cidade, responsavel, parentesco_responsavel,
-          telefone_responsavel, email_responsavel, contato_emergencia, observacoes_saude, ja_jogou, autoriza_imagem)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+          telefone_responsavel, email_responsavel, contato_emergencia, observacoes_saude, ja_jogou, autoriza_imagem, indicado_por)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
         a.nome, i === 0 ? email : null, hashSenha(i === 0 ? String(b.senha) : crypto.randomBytes(16).toString('hex')), a.telefone, a.nascimento, a.cpf, a.sexo,
         a.endereco, a.bairro, a.cidade, a.responsavel, a.parentesco_responsavel, a.telefone_responsavel, a.email_responsavel,
-        a.contato_emergencia, a.observacoes_saude, a.ja_jogou, imagem);
+        a.contato_emergencia, a.observacoes_saude, a.ja_jogou, imagem, i === 0 ? limpar(b.indicado_por)?.slice(0, 120) ?? null : null);
       const m = await tx.get(`INSERT INTO matriculas (user_id, plano_id, turma_id, dias, nivel, dia_vencimento, data_inicio, grupo_id, valor)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, u.id, plano.id, a.turma.id, a.dias.join(','), a.nivel, Number(cfg.dia_vencimento) || 10, hoje(),
         titular?.matricula ?? null, titular ? 0 : null);
@@ -295,7 +295,7 @@ function matriculaDo(userId) {
 const grupoDa = mat => !mat?.grupo_id ? [] : db.all(`SELECT u.id, u.nome, t.nome AS turma, m.status, (m.id = m.grupo_id) AS titular
   FROM matriculas m JOIN users u ON u.id = m.user_id JOIN turmas t ON t.id = m.turma_id WHERE m.grupo_id = ? ORDER BY (m.id = m.grupo_id) DESC, m.id`, mat.grupo_id);
 
-const CAMPOS_PERFIL = 'id, nome, email, telefone, nascimento, cpf, sexo, endereco, bairro, cidade, responsavel, parentesco_responsavel, telefone_responsavel, email_responsavel, contato_emergencia, observacoes_saude, ja_jogou, autoriza_imagem, criado_em';
+const CAMPOS_PERFIL = 'id, nome, email, telefone, nascimento, cpf, sexo, endereco, bairro, cidade, responsavel, parentesco_responsavel, telefone_responsavel, email_responsavel, contato_emergencia, observacoes_saude, ja_jogou, autoriza_imagem, indicado_por, indicado_por_id, criado_em';
 
 function proximasAulas(mat, qtd = 6) {
   if (!mat || mat.status !== 'ativa') return [];
@@ -550,6 +550,9 @@ admin.get('/alunos/:id', rota(async req => {
   return {
     aluno: { ...u, idade: u.nascimento ? calcIdade(u.nascimento) : null },
     matricula, grupo: await grupoDa(matricula),
+    indicado_por: u.indicado_por_id ? await db.get('SELECT id, nome FROM users WHERE id = ?', u.indicado_por_id) : null,
+    indicados: await db.all(`SELECT u.id, u.nome, m.status, m.data_inicio FROM users u LEFT JOIN matriculas m ON m.user_id = u.id
+      WHERE u.indicado_por_id = ? ORDER BY m.data_inicio`, u.id),
     mensalidades: await listarMensalidades(u.id),
     presencas: await db.all('SELECT data, presente, origem FROM presencas WHERE user_id = ? ORDER BY data DESC LIMIT 30', u.id),
     frequencia_30d: await frequencia(u.id, addDias(hoje(), -30)),
@@ -576,6 +579,17 @@ admin.put('/alunos/:id/matricula', rota(async req => {
   return { ok: true };
 }));
 
+// Liga a indicação ao aluno que indicou (ou desfaz, com indicado_por_id vazio)
+admin.put('/alunos/:id/indicacao', rota(async req => {
+  const id = Number(req.params.id) || 0;
+  const quem = Number(req.body?.indicado_por_id) || null;
+  if (quem === id) throw falha(400, 'O aluno não pode indicar a si mesmo.');
+  if (quem && !(await db.get("SELECT 1 FROM users WHERE id = ? AND role = 'aluno'", quem))) throw falha(400, 'Aluno indicador não encontrado.');
+  const r = await db.run("UPDATE users SET indicado_por_id = ? WHERE id = ? AND role = 'aluno'", quem, id);
+  if (!r.changes) throw falha(404, 'Aluno não encontrado.');
+  return { ok: true };
+}));
+
 admin.delete('/alunos/:id', rota(async req => {
   const r = await db.run("DELETE FROM users WHERE id = ? AND role = 'aluno'", Number(req.params.id) || 0);
   if (!r.changes) throw falha(404, 'Aluno não encontrado.');
@@ -585,10 +599,11 @@ admin.delete('/alunos/:id', rota(async req => {
 admin.get('/alunos.csv', rota(async (req, res) => {
   const rows = await db.all(`SELECT u.nome, u.email, u.telefone, u.nascimento, u.sexo, u.cpf, u.endereco, u.bairro, u.cidade, u.responsavel, u.parentesco_responsavel,
       u.telefone_responsavel, u.email_responsavel, CASE u.autoriza_imagem WHEN 1 THEN 'sim' WHEN 0 THEN 'não' END AS uso_imagem, u.observacoes_saude,
-      m.status, p.nome AS plano, COALESCE(m.valor, p.preco) AS preco, t.nome AS turma, m.dias, m.nivel, m.data_inicio
-    FROM users u JOIN matriculas m ON m.user_id = u.id JOIN planos p ON p.id = m.plano_id JOIN turmas t ON t.id = m.turma_id WHERE u.role = 'aluno' ORDER BY u.nome`);
+      COALESCE(ind.nome, u.indicado_por) AS indicado_por, m.status, p.nome AS plano, COALESCE(m.valor, p.preco) AS preco, t.nome AS turma, m.dias, m.nivel, m.data_inicio
+    FROM users u JOIN matriculas m ON m.user_id = u.id JOIN planos p ON p.id = m.plano_id JOIN turmas t ON t.id = m.turma_id LEFT JOIN users ind ON ind.id = u.indicado_por_id
+    WHERE u.role = 'aluno' ORDER BY u.nome`);
   const cols = ['nome', 'email', 'telefone', 'nascimento', 'sexo', 'cpf', 'endereco', 'bairro', 'cidade', 'responsavel', 'parentesco_responsavel', 'telefone_responsavel',
-    'email_responsavel', 'uso_imagem', 'observacoes_saude', 'status', 'plano', 'preco', 'turma', 'dias', 'nivel', 'data_inicio'];
+    'email_responsavel', 'uso_imagem', 'observacoes_saude', 'indicado_por', 'status', 'plano', 'preco', 'turma', 'dias', 'nivel', 'data_inicio'];
   const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const csv = '﻿' + [cols.join(';'), ...rows.map(r => cols.map(c => esc(r[c])).join(';'))].join('\r\n');
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');

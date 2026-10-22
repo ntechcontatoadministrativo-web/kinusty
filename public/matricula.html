@@ -51,6 +51,8 @@
                 </div>
               </div>
               <div>
+                <div class="campo"><label for="indicado_por">Quem te indicou? (opcional)</label>
+                  <input id="indicado_por" name="indicado_por" maxlength="120" placeholder="Nome de quem indicou a Kinusty para você" autocomplete="off"></div>
                 <label>Resumo da matrícula</label>
                 <div class="resumo-box" id="resumo"></div>
               </div>
@@ -238,7 +240,7 @@
       try {
         const corpo = {
           plano_id: seletor.estado.plano_id, dias: seletor.estado.dias, alunos: lerPessoas(),
-          email: form.email.value.trim(), senha: form.senha.value,
+          email: form.email.value.trim(), senha: form.senha.value, indicado_por: form.indicado_por.value.trim(),
           autoriza_imagem: form.querySelector('[name="autoriza_imagem"]:checked').value, aceite: document.getElementById('aceite').checked,
         };
         const r = await api('/api/matricula', { method: 'POST', body: corpo });
