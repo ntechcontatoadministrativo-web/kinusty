@@ -4,7 +4,7 @@ let resumo = null;
 async function carregarResumo() {
   resumo = await api('/api/aluno/resumo');
   document.getElementById('nome-usuario').textContent = resumo.perfil.nome;
-  document.getElementById('avatar').textContent = iniciais(resumo.perfil.nome);
+  document.getElementById('avatar').outerHTML = avatar(resumo.perfil).replace('class="avatar"', 'class="avatar" id="avatar"');
   const pend = resumo.em_atraso;
   const cont = document.getElementById('cont-mens');
   cont.textContent = pend;
@@ -86,6 +86,15 @@ function abrirPagamento(m) {
   };
 }
 
+async function trocarFoto(depois) {
+  try {
+    const foto = await escolherFoto();
+    if (!foto) return;
+    await api('/api/aluno/foto', { method: 'PUT', body: { foto } });
+    toast('Foto salva!'); depois();
+  } catch (e) { toast(e.message, 'erro'); }
+}
+
 const valorPlano = mat => !mat ? '–' : mat.grupo_id && !mat.valor_mensal ? 'pago pelo titular do plano' : `${moeda(mat.valor_mensal)}/mês`;
 
 // ---------- Abas ----------
@@ -101,7 +110,11 @@ const abas = {
       ${boasVindas ? `<div class="card boas-vindas" style="margin-bottom:1rem">
         <h3>🎉 Matrícula realizada com sucesso!</h3>
         <p class="texto-2" style="margin:0">Bem-vindo(a) à família Kinusty! Sua primeira mensalidade já está disponível em <strong>Mensalidades</strong>. Nos vemos na quadra 🏐</p></div>` : ''}
-      ${mat && mat.status !== 'ativa' ? `<div class="erro-msg">Sua matrícula está <strong>${ROTULO_STATUS[mat.status]}</strong>. Fale com a escolinha para reativar.</div>` : ''}
+      ${!r.perfil.tem_foto ? `<div class="card pausa-card flex space" style="margin-bottom:1rem"><span>📷 Falta a sua foto no cadastro da escolinha.</span>
+        <button class="btn btn-gold btn-sm" id="add-foto">Adicionar foto</button></div>` : ''}
+      ${mat?.status === 'trancada' ? `<div class="card pausa-card" style="margin-bottom:1rem"><strong>⏸ Sua matrícula está pausada</strong>
+        <p class="muted" style="margin:.3rem 0 0">${mat.pausa_ate ? `Até ${dataBR(mat.pausa_ate)}. Ela volta a ficar ativa sozinha no dia seguinte.` : 'Fale com a escolinha quando quiser voltar.'} Durante a pausa não há mensalidades nem treinos.</p></div>`
+      : mat && mat.status !== 'ativa' ? `<div class="erro-msg">Sua matrícula está <strong>${ROTULO_STATUS[mat.status]}</strong>. Fale com a escolinha para reativar.</div>` : ''}
 
       <div class="kpis">
         <div class="kpi destaque"><div class="rotulo">Plano</div><div class="valor">${mat?.dias_semana ?? '–'}x/sem</div><div class="sub">${valorPlano(mat)}</div></div>
@@ -136,6 +149,7 @@ const abas = {
       catch (e) { toast(e.message, 'erro'); }
     });
     document.getElementById('pagar-agora')?.addEventListener('click', () => abrirPagamento(m));
+    document.getElementById('add-foto')?.addEventListener('click', () => trocarFoto(abas.inicio));
   },
 
   async mensalidades() {
@@ -208,7 +222,7 @@ const abas = {
             <div><span>Nível</span><strong>${NIVEIS[mat.nivel]}</strong></div>
             <div><span>Vencimento</span><strong>todo dia ${mat.dia_vencimento}</strong></div>
           </div>
-          <p class="muted mt" style="font-size:.85rem">Precisa trancar ou cancelar? <a target="_blank" rel="noopener" href="${linkWhats(resumo.whatsapp, 'Olá! Gostaria de falar sobre a minha matrícula na Kinusty.')}">Fale com a escolinha</a>.</p>
+          <p class="muted mt" style="font-size:.85rem">Precisa pausar ou cancelar? <a target="_blank" rel="noopener" href="${linkWhats(resumo.whatsapp, 'Olá! Gostaria de falar sobre a minha matrícula na Kinusty.')}">Fale com a escolinha</a>.</p>
         </div>
       </div>`;
     if (emGrupo) return;
@@ -234,6 +248,7 @@ const abas = {
       <div class="grid-dash">
         <form class="card" id="f-perfil">
           <h3>Dados pessoais</h3>
+          <div class="foto-escolha campo">${avatar(p, 88)}<button type="button" class="btn btn-outline btn-sm" id="trocar-foto">${p.tem_foto ? 'Trocar foto' : '📷 Adicionar foto'}</button></div>
           <div class="campo"><label>Nome completo</label><input name="nome" value="${esc(p.nome)}" required></div>
           <div class="grid-2">
             <div class="campo"><label>E-mail (login)</label><input value="${esc(p.email)}" disabled></div>
@@ -264,6 +279,7 @@ const abas = {
           <button class="btn btn-outline">Alterar senha</button>
         </form>
       </div>`;
+    document.getElementById('trocar-foto').onclick = () => trocarFoto(abas.perfil);
     document.getElementById('f-perfil').onsubmit = async e => {
       e.preventDefault();
       try { await api('/api/aluno/perfil', { method: 'PUT', body: dadosForm(e.target) }); toast('Dados atualizados!'); carregarResumo(); }

@@ -106,7 +106,11 @@
       const titulo = total === 1 ? 'Dados do aluno' : i === 0 ? '1ª pessoa <small>— titular: faz o login e paga a mensalidade</small>' : `${i + 1}ª pessoa`;
       return `<div class="pessoa" data-pessoa="${i}">
         <h3>${titulo}</h3>
-        ${c('nome', 'Nome completo *', 'autocomplete="' + (i === 0 ? 'name' : 'off') + '"')}
+        <div class="campo"><label>Foto ${total === 1 ? 'do aluno' : 'da pessoa'} *</label>
+          <div class="foto-escolha"><div class="foto-previa" data-previa>📷</div>
+            <div><button type="button" class="btn btn-outline btn-sm" data-foto>Escolher foto</button>
+              <div class="hint">Foto do rosto, de frente e bem iluminada. No celular dá para tirar na hora.</div></div></div></div>
+        ${c('nome', 'Nome completo *','autocomplete="' + (i === 0 ? 'name' : 'off') + '"')}
         <div class="grid-3">
           ${c('nascimento', 'Data de nascimento *', 'type="date"')}
           <div class="campo"><label for="p${i}_sexo">Sexo *</label><select id="p${i}_sexo" data-k="sexo"><option value="">Selecione</option><option value="F">Feminino</option><option value="M">Masculino</option><option value="O">Outro</option></select></div>
@@ -152,6 +156,20 @@
       document.querySelector('[data-etapa="2"]').textContent = p.pessoas > 1 ? 'Dados das pessoas' : 'Dados do aluno';
       document.getElementById('txt-imagem').textContent = p.pessoas > 1 ? 'das pessoas inscritas' : 'do aluno';
     }
+    pessoasEl.addEventListener('click', async e => {
+      const b = e.target.closest('[data-foto]');
+      if (!b) return;
+      const bloco = b.closest('[data-pessoa]');
+      try {
+        const foto = await escolherFoto();
+        if (!foto) return;
+        bloco.dataset.foto = foto;
+        const previa = bloco.querySelector('[data-previa]');
+        previa.innerHTML = `<img src="${foto}" alt="">`;
+        previa.classList.add('ok');
+        b.textContent = 'Trocar foto';
+      } catch (err) { mostrarErro(err.message); }
+    });
     pessoasEl.addEventListener('change', e => {
       const bloco = e.target.closest('[data-pessoa]');
       if (e.target.dataset.k === 'nascimento') {
@@ -166,6 +184,7 @@
     function lerPessoas() {
       return [...pessoasEl.querySelectorAll('[data-pessoa]')].map(b => {
         const a = Object.fromEntries([...b.querySelectorAll('[data-k]')].map(x => [x.dataset.k, x.value.trim()]));
+        a.foto = b.dataset.foto || '';
         a.ja_jogou = b.querySelector(`input[name="p${b.dataset.pessoa}_ja_jogou"]:checked`)?.value || '';
         const saude = [...b.querySelectorAll('[data-saude]:checked')].map(x => x.value);
         if (a.saude_outras) saude.push(a.saude_outras);
@@ -183,6 +202,7 @@
       if (p === 2) {
         for (const [i, a] of lerPessoas().entries()) {
           const quem = seletor.plano().pessoas > 1 ? ` (${i + 1}ª pessoa)` : '';
+          if (!a.foto) return `Envie uma foto${quem ? quem : ' do aluno'}.`;
           if (a.nome.split(' ').filter(Boolean).length < 2) return `Informe o nome completo${quem}.`;
           if (!a.nascimento) return `Informe a data de nascimento${quem}.`;
           if (!a.sexo) return `Informe o sexo${quem}.`;

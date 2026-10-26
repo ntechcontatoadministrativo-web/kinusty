@@ -233,7 +233,12 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .menu .ic { width: 20px; text-align: center; }
 .menu .contador { margin-left: auto; background: var(--warn); color: #111; font-size: .7rem; font-weight: 700; border-radius: 999px; padding: .1em .5em; }
 .usuario-box { display: flex; gap: .7rem; align-items: center; padding: .8rem; background: var(--card); border-radius: 12px; }
-.avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--gold); color: #111; display: grid; place-items: center; font-weight: 700; flex-shrink: 0; }
+.avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--gold); color: #111; display: grid; place-items: center; font-weight: 700; flex-shrink: 0; overflow: hidden; }
+.avatar img, .foto-previa img { width: 100%; height: 100%; object-fit: cover; }
+.foto-escolha { display: flex; align-items: center; gap: 1rem; }
+.foto-previa { width: 88px; height: 88px; border-radius: 50%; background: var(--bg-2); border: 2px dashed var(--line); display: grid; place-items: center; font-size: 1.8rem; overflow: hidden; flex-shrink: 0; }
+.foto-previa.ok { border-style: solid; border-color: var(--gold); }
+.pausa-card { border-color: rgba(240, 169, 44, .4); }
 .usuario-box div { min-width: 0; }
 .usuario-box strong { display: block; font-size: .88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .usuario-box small { color: var(--muted); font-size: .75rem; }

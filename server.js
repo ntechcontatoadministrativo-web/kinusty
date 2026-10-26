@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 const SESSAO_DIAS = 30;
 
 app.set('trust proxy', 1);
-app.use(express.json({ limit: '200kb' }));
+app.use(express.json({ limit: '2mb' })); // a matrícula leva até 4 fotos
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ---------- Utilidades de data ----------
@@ -53,6 +53,22 @@ async function gerarMensalidades(comp = competenciaAtual()) {
     WHERE m.status = 'ativa' AND substr(m.data_inicio, 1, 7) <= ?::text AND COALESCE(m.valor, p.preco) > 0
     ON CONFLICT (matricula_id, competencia) DO NOTHING`, comp, comp, ultimoDia, comp);
   return r.changes;
+}
+
+// ---------- Pausa de matrícula ----------
+// Volta a matrícula para ativa e gera a mensalidade do mês. Quem volta depois do vencimento ganha 3 dias para pagar.
+async function retomarMatriculas(ids) {
+  await db.run(`UPDATE matriculas SET status = 'ativa', pausa_inicio = NULL, pausa_ate = NULL, pausa_motivo = NULL
+    WHERE id = ANY(?::int[]) AND status = 'trancada'`, ids);
+  await gerarMensalidades();
+  await db.run(`UPDATE mensalidades SET vencimento = ? WHERE matricula_id = ANY(?::int[]) AND competencia = ? AND status = 'pendente'
+    AND vencimento < ? AND criado_em >= ?`, addDias(hoje(), 3), ids, competenciaAtual(), hoje(), hoje());
+}
+
+// Pausas com data marcada terminam sozinhas no dia seguinte ao "pausada até"
+async function retomarPausasVencidas() {
+  const ids = (await db.all(`SELECT id FROM matriculas WHERE status = 'trancada' AND pausa_ate < ?`, hoje())).map(r => r.id);
+  if (ids.length) await retomarMatriculas(ids);
 }
 
 // ---------- Sessões / autenticação ----------
@@ -128,6 +144,14 @@ async function validarEscolha({ plano_id, turma_id, dias }) {
 const limpar = v => (typeof v === 'string' ? v.trim() : v) || null;
 const simNao = v => (v === true || v === 1 || v === '1' || v === 'sim' ? 1 : v === false || v === 0 || v === '0' || v === 'nao' ? 0 : null);
 
+// Foto do aluno: o navegador já reduz a imagem e envia como data URL
+function validarFoto(foto, quem = '') {
+  const m = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.exec(typeof foto === 'string' ? foto : '');
+  if (!m) throw falha(400, `Envie uma foto do aluno${quem}.`);
+  if (foto.length > 500_000) throw falha(400, `A foto${quem} é muito grande. Escolha outra imagem.`);
+  return foto;
+}
+
 function calcIdade(nasc) {
   const n = parseData(nasc), h = new Date();
   let i = h.getFullYear() - n.getFullYear();
@@ -201,7 +225,7 @@ function dadosAluno(a, i, titular) {
   if (i === 0 && !limpar(a.telefone) && !menor) throw falha(400, 'Informe um telefone/WhatsApp.');
   if (i === 0 && (!limpar(a.endereco) || !limpar(a.bairro) || !limpar(a.cidade))) throw falha(400, 'Informe endereço, bairro e cidade.');
   return {
-    nome, nascimento: a.nascimento, sexo: ['F', 'M', 'O'].includes(a.sexo) ? a.sexo : null,
+    nome, foto: validarFoto(a.foto, quem), nascimento: a.nascimento, sexo: ['F', 'M', 'O'].includes(a.sexo) ? a.sexo : null,
     telefone: limpar(a.telefone), cpf: limpar(a.cpf),
     // Casal/família moram juntos: os acompanhantes usam o endereço do titular
     endereco: limpar(a.endereco) ?? titular?.endereco ?? null, bairro: limpar(a.bairro) ?? titular?.bairro ?? null, cidade: limpar(a.cidade) ?? titular?.cidade ?? null,
@@ -240,11 +264,11 @@ app.post('/api/matricula', rota(async (req, res) => {
     for (const [i, a] of alunos.entries()) {
       // Só o titular tem login; os demais recebem uma senha aleatória e não entram no sistema
       const u = await tx.get(`INSERT INTO users (nome, email, senha_hash, telefone, nascimento, cpf, sexo, endereco, bairro, cidade, responsavel, parentesco_responsavel,
-          telefone_responsavel, email_responsavel, contato_emergencia, observacoes_saude, ja_jogou, autoriza_imagem, indicado_por)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+          telefone_responsavel, email_responsavel, contato_emergencia, observacoes_saude, ja_jogou, autoriza_imagem, indicado_por, foto)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
         a.nome, i === 0 ? email : null, hashSenha(i === 0 ? String(b.senha) : crypto.randomBytes(16).toString('hex')), a.telefone, a.nascimento, a.cpf, a.sexo,
         a.endereco, a.bairro, a.cidade, a.responsavel, a.parentesco_responsavel, a.telefone_responsavel, a.email_responsavel,
-        a.contato_emergencia, a.observacoes_saude, a.ja_jogou, imagem, i === 0 ? limpar(b.indicado_por)?.slice(0, 120) ?? null : null);
+        a.contato_emergencia, a.observacoes_saude, a.ja_jogou, imagem, i === 0 ? limpar(b.indicado_por)?.slice(0, 120) ?? null : null, a.foto);
       const m = await tx.get(`INSERT INTO matriculas (user_id, plano_id, turma_id, dias, nivel, dia_vencimento, data_inicio, grupo_id, valor)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, u.id, plano.id, a.turma.id, a.dias.join(','), a.nivel, Number(cfg.dia_vencimento) || 10, hoje(),
         titular?.matricula ?? null, titular ? 0 : null);
@@ -278,6 +302,18 @@ app.post('/api/auth/logout', rota(async (req, res) => {
 
 app.get('/api/me', exigirLogin, rota(req => ({ user: req.user })));
 
+// Foto do aluno: o admin vê todas, o aluno só a própria
+app.get('/api/fotos/:id', exigirLogin, rota(async (req, res) => {
+  const id = Number(req.params.id) || 0;
+  if (req.user.role !== 'admin' && id !== req.user.id) throw falha(403, 'Acesso negado.');
+  const u = await db.get('SELECT foto FROM users WHERE id = ?', id);
+  const m = /^data:(image\/\w+);base64,(.+)$/.exec(u?.foto || '');
+  if (!m) throw falha(404, 'Aluno sem foto.');
+  res.setHeader('Content-Type', m[1]);
+  res.setHeader('Cache-Control', 'private, no-cache');
+  res.send(Buffer.from(m[2], 'base64'));
+}));
+
 // =====================================================
 // ÁREA DO ALUNO
 // =====================================================
@@ -295,7 +331,7 @@ function matriculaDo(userId) {
 const grupoDa = mat => !mat?.grupo_id ? [] : db.all(`SELECT u.id, u.nome, t.nome AS turma, m.status, (m.id = m.grupo_id) AS titular
   FROM matriculas m JOIN users u ON u.id = m.user_id JOIN turmas t ON t.id = m.turma_id WHERE m.grupo_id = ? ORDER BY (m.id = m.grupo_id) DESC, m.id`, mat.grupo_id);
 
-const CAMPOS_PERFIL = 'id, nome, email, telefone, nascimento, cpf, sexo, endereco, bairro, cidade, responsavel, parentesco_responsavel, telefone_responsavel, email_responsavel, contato_emergencia, observacoes_saude, ja_jogou, autoriza_imagem, indicado_por, indicado_por_id, criado_em';
+const CAMPOS_PERFIL = 'id, nome, email, telefone, nascimento, cpf, sexo, endereco, bairro, cidade, responsavel, parentesco_responsavel, telefone_responsavel, email_responsavel, contato_emergencia, observacoes_saude, ja_jogou, autoriza_imagem, indicado_por, indicado_por_id, criado_em, (foto IS NOT NULL) AS tem_foto';
 
 function proximasAulas(mat, qtd = 6) {
   if (!mat || mat.status !== 'ativa') return [];
@@ -317,6 +353,7 @@ const listarMensalidades = async userId =>
   (await db.all('SELECT * FROM mensalidades WHERE user_id = ? ORDER BY competencia DESC', userId)).map(m => ({ ...m, status: statusMensalidade(m) }));
 
 aluno.get('/resumo', rota(async req => {
+  await retomarPausasVencidas();
   const mat = await matriculaDo(req.user.id);
   const perfil = await db.get(`SELECT ${CAMPOS_PERFIL} FROM users WHERE id = ?`, req.user.id);
   const mens = await listarMensalidades(req.user.id);
@@ -390,6 +427,11 @@ aluno.put('/perfil', rota(async req => {
   return { ok: true };
 }));
 
+aluno.put('/foto', rota(async req => {
+  await db.run('UPDATE users SET foto = ? WHERE id = ?', validarFoto(req.body?.foto), req.user.id);
+  return { ok: true };
+}));
+
 async function trocarSenha(req) {
   const u = await db.get('SELECT senha_hash FROM users WHERE id = ?', req.user.id);
   if (!conferirSenha(String(req.body?.atual || ''), u.senha_hash)) throw falha(400, 'Senha atual incorreta.');
@@ -420,6 +462,7 @@ const admin = express.Router();
 admin.use(exigirLogin, exigirAdmin);
 
 admin.get('/dashboard', rota(async () => {
+  await retomarPausasVencidas();
   await gerarMensalidades();
   const comp = competenciaAtual();
   const hj = hoje();
@@ -535,7 +578,8 @@ admin.get('/alunos', rota(async req => {
   if (status) { filtros.push('m.status = ?'); params.push(status); }
   if (Number(turma)) { filtros.push('t.id = ?'); params.push(Number(turma)); }
   if (Number(plano)) { filtros.push('p.id = ?'); params.push(Number(plano)); }
-  return db.all(`SELECT u.id, u.nome, u.email, u.telefone, u.nascimento, m.id AS matricula_id, m.status, m.dias, m.nivel, m.data_inicio,
+  await retomarPausasVencidas();
+  return db.all(`SELECT u.id, u.nome, u.email, u.telefone, u.nascimento, (u.foto IS NOT NULL) AS tem_foto, m.id AS matricula_id, m.status, m.pausa_ate, m.dias, m.nivel, m.data_inicio,
       p.id AS plano_id, p.nome AS plano, COALESCE(m.valor, p.preco) AS preco, m.grupo_id, t.id AS turma_id, t.nome AS turma,
       (SELECT COUNT(*) FROM mensalidades ms WHERE ms.user_id = u.id AND ms.status = 'pendente' AND ms.vencimento < ?) AS atrasadas
     FROM users u JOIN matriculas m ON m.user_id = u.id JOIN planos p ON p.id = m.plano_id JOIN turmas t ON t.id = m.turma_id
@@ -563,7 +607,8 @@ admin.put('/alunos/:id/matricula', rota(async req => {
   const mat = await matriculaDo(Number(req.params.id) || 0);
   if (!mat) throw falha(404, 'Matrícula não encontrada.');
   const b = req.body || {};
-  const status = ['ativa', 'trancada', 'cancelada'].includes(b.status) ? b.status : mat.status;
+  // Pausar tem rota própria (com período e motivo); aqui só dá para manter a pausa, ativar ou cancelar
+  const status = ['ativa', 'cancelada', mat.status].includes(b.status) ? b.status : mat.status;
   const reativando = status === 'ativa' && mat.status !== 'ativa';
   const escolha = await validarEscolha({ plano_id: b.plano_id ?? mat.plano_id, turma_id: b.turma_id ?? mat.turma_id, dias: b.dias ?? mat.dias.split(',') });
   const nivel = ['iniciante', 'intermediario', 'avancado'].includes(b.nivel) ? b.nivel : mat.nivel;
@@ -572,6 +617,7 @@ admin.put('/alunos/:id/matricula', rota(async req => {
   await transacao(async tx => {
     await tx.run(`UPDATE matriculas SET status = ?, plano_id = ?, turma_id = ?, dias = ?, nivel = ?, dia_vencimento = ?, cancelado_em = ? WHERE id = ?`,
       status, escolha.plano.id, escolha.turma.id, escolha.dias.join(','), nivel, venc, canceladoEm, mat.id);
+    if (status !== 'trancada') await tx.run('UPDATE matriculas SET pausa_inicio = NULL, pausa_ate = NULL, pausa_motivo = NULL WHERE id = ?', mat.id);
     // Ao cancelar, mensalidades futuras em aberto são canceladas
     if (status === 'cancelada') await tx.run(`UPDATE mensalidades SET status = 'cancelada' WHERE matricula_id = ? AND status = 'pendente' AND vencimento >= ?`, mat.id, hoje());
   });
@@ -586,6 +632,42 @@ admin.put('/alunos/:id/indicacao', rota(async req => {
   if (quem === id) throw falha(400, 'O aluno não pode indicar a si mesmo.');
   if (quem && !(await db.get("SELECT 1 FROM users WHERE id = ? AND role = 'aluno'", quem))) throw falha(400, 'Aluno indicador não encontrado.');
   const r = await db.run("UPDATE users SET indicado_por_id = ? WHERE id = ? AND role = 'aluno'", quem, id);
+  if (!r.changes) throw falha(404, 'Aluno não encontrado.');
+  return { ok: true };
+}));
+
+// Matrículas afetadas pela pausa: o titular de plano casal/família leva o grupo todo junto
+async function idsDaPausa(mat) {
+  if (!mat.grupo_id || mat.grupo_id !== mat.id) return [mat.id];
+  return (await db.all('SELECT id FROM matriculas WHERE grupo_id = ?', mat.id)).map(r => r.id);
+}
+
+// Pausa: não gera mensalidades, sai da chamada e do check-in; cobranças ainda não vencidas são canceladas
+admin.post('/alunos/:id/pausar', rota(async req => {
+  const mat = await matriculaDo(Number(req.params.id) || 0);
+  if (!mat) throw falha(404, 'Matrícula não encontrada.');
+  if (mat.status !== 'ativa') throw falha(400, 'Só dá para pausar uma matrícula ativa.');
+  const ate = limpar(req.body?.ate);
+  if (ate && (!/^\d{4}-\d{2}-\d{2}$/.test(ate) || ate < hoje())) throw falha(400, 'A data final da pausa precisa ser hoje ou depois.');
+  const ids = await idsDaPausa(mat);
+  await transacao(async tx => {
+    await tx.run(`UPDATE matriculas SET status = 'trancada', pausa_inicio = ?, pausa_ate = ?, pausa_motivo = ? WHERE id = ANY(?::int[]) AND status = 'ativa'`,
+      hoje(), ate, limpar(req.body?.motivo)?.slice(0, 200) ?? null, ids);
+    await tx.run(`UPDATE mensalidades SET status = 'cancelada' WHERE matricula_id = ANY(?::int[]) AND status = 'pendente' AND vencimento >= ?`, ids, hoje());
+  });
+  return { ok: true, pessoas: ids.length };
+}));
+
+admin.post('/alunos/:id/retomar', rota(async req => {
+  const mat = await matriculaDo(Number(req.params.id) || 0);
+  if (!mat) throw falha(404, 'Matrícula não encontrada.');
+  if (mat.status !== 'trancada') throw falha(400, 'Essa matrícula não está pausada.');
+  await retomarMatriculas(await idsDaPausa(mat));
+  return { ok: true };
+}));
+
+admin.put('/alunos/:id/foto', rota(async req => {
+  const r = await db.run("UPDATE users SET foto = ? WHERE id = ? AND role = 'aluno'", validarFoto(req.body?.foto), Number(req.params.id) || 0);
   if (!r.changes) throw falha(404, 'Aluno não encontrado.');
   return { ok: true };
 }));
@@ -737,6 +819,7 @@ app.use((err, _req, res, _next) => { console.error(err); res.status(500).json({ 
 // Rotinas: gera mensalidades do mês e limpa sessões expiradas
 async function rotinas() {
   try {
+    await retomarPausasVencidas();
     await gerarMensalidades();
     await db.run('DELETE FROM sessions WHERE expira_em < ?', Date.now());
   } catch (e) { console.error('Falha nas rotinas:', e.message); }

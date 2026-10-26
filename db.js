@@ -173,6 +173,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS autoriza_imagem INTEGER;
 -- Indicação: o que o aluno escreveu na matrícula e o aluno que o admin confirmou
 ALTER TABLE users ADD COLUMN IF NOT EXISTS indicado_por TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS indicado_por_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+-- Foto do aluno (reduzida no navegador e guardada como data URL)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS foto TEXT;
 -- Acompanhantes de plano casal/família não precisam de e-mail (não fazem login)
 ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
 
@@ -184,6 +186,10 @@ ALTER TABLE planos ADD COLUMN IF NOT EXISTS dias_fixos TEXT;
 -- grupo_id = matrícula do titular (quem paga); valor = 0 para os acompanhantes (NULL usa o preço do plano)
 ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS grupo_id INTEGER;
 ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS valor DOUBLE PRECISION;
+-- Pausa (status 'trancada'): desde quando, até quando (inclusive; em branco = até o admin retomar) e o motivo
+ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS pausa_inicio TEXT;
+ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS pausa_ate TEXT;
+ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS pausa_motivo TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_mens_user ON mensalidades(user_id);
 CREATE INDEX IF NOT EXISTS idx_mens_comp ON mensalidades(competencia);

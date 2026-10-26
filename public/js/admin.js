@@ -70,7 +70,7 @@ const abas = {
         <div class="kpi"><div class="rotulo">Novas matrículas no mês</div><div class="valor">${k.novos_mes}</div><div class="sub">${k.cancelamentos_mes} cancelamento(s) no mês</div></div>
         <div class="kpi"><div class="rotulo">Ticket médio</div><div class="valor">${moeda(k.ticket_medio)}</div><div class="sub">por aluno ativo</div></div>
         <div class="kpi"><div class="rotulo">A receber (em dia)</div><div class="valor">${moeda(k.a_receber)}</div><div class="sub">${k.a_receber_qtd} mensalidade(s)</div></div>
-        <div class="kpi"><div class="rotulo">Frequência média (30d)</div><div class="valor">${k.frequencia_30d ?? '–'}${k.frequencia_30d !== null ? '%' : ''}</div><div class="sub">${k.trancados} trancado(s) · ${k.cancelados} cancelado(s)</div></div>
+        <div class="kpi"><div class="rotulo">Frequência média (30d)</div><div class="valor">${k.frequencia_30d ?? '–'}${k.frequencia_30d !== null ? '%' : ''}</div><div class="sub">${k.trancados} pausado(s) · ${k.cancelados} cancelado(s)</div></div>
       </div>
 
       <div class="grid-dash">
@@ -168,7 +168,7 @@ const abas = {
     conteudo.innerHTML = `${topo('Alunos', '', `<a class="btn btn-outline btn-sm" href="/api/admin/alunos.csv">⬇ Exportar planilha</a><a class="btn btn-gold btn-sm" href="/matricula.html" target="_blank">+ Nova matrícula</a>`)}
       <div class="filtros">
         <input type="search" id="f-busca" placeholder="Buscar por nome, e-mail ou telefone...">
-        <select id="f-status"><option value="">Todos os status</option><option value="ativa">Ativos</option><option value="trancada">Trancados</option><option value="cancelada">Cancelados</option></select>
+        <select id="f-status"><option value="">Todos os status</option><option value="ativa">Ativos</option><option value="trancada">Pausados</option><option value="cancelada">Cancelados</option></select>
         <select id="f-turma"><option value="">Todas as turmas</option>${info.turmas.map(t => `<option value="${t.id}">${esc(t.nome)}</option>`).join('')}</select>
         <select id="f-plano"><option value="">Todos os planos</option>${info.planos.map(p => `<option value="${p.id}">${esc(nomePlano(p))}</option>`).join('')}</select>
       </div>
@@ -181,10 +181,10 @@ const abas = {
       document.getElementById('tabela-alunos').innerHTML = `<table>
         <thead><tr><th>Aluno</th><th>Turma</th><th>Plano</th><th>Dias</th><th>Status</th><th>Financeiro</th><th></th></tr></thead>
         <tbody>${lista.map(a => `<tr>
-          <td><div class="flex" style="flex-wrap:nowrap"><div class="avatar" style="width:32px;height:32px;font-size:.75rem">${iniciais(a.nome)}</div>
+          <td><div class="flex" style="flex-wrap:nowrap">${avatar(a, 32)}
             <div><strong>${esc(a.nome)}</strong><div class="muted" style="font-size:.8rem">${esc(a.telefone || a.email)}</div></div></div></td>
           <td>${esc(a.turma)}</td><td>${esc(nomePlano(a.plano))} <div class="muted" style="font-size:.8rem">${a.grupo_id && !a.preco ? 'no plano do titular' : moeda(a.preco)}</div></td>
-          <td>${diasTexto(a.dias)}</td><td>${badge(a.status)}</td>
+          <td>${diasTexto(a.dias)}</td><td>${badge(a.status)}${a.status === 'trancada' && a.pausa_ate ? `<div class="muted" style="font-size:.8rem">até ${dataBR(a.pausa_ate)}</div>` : ''}</td>
           <td>${a.atrasadas ? `<span class="badge b-atrasada">${a.atrasadas} em atraso</span>` : '<span class="badge b-paga">Em dia</span>'}</td>
           <td class="num"><button class="btn btn-sm" onclick="verAluno(${a.id})">Abrir</button></td></tr>`).join('') || '<tr><td colspan="7" class="vazio">Nenhum aluno encontrado.</td></tr>'}</tbody>
       </table><p class="muted" style="font-size:.85rem;margin-bottom:0">${lista.length} aluno(s)</p>`;
@@ -426,8 +426,10 @@ async function verAluno(id) {
   const r = await api(`/api/admin/alunos/${id}`);
   const a = r.aluno, m = r.matricula;
   const box = abrirModal(`
-    <div class="flex" style="margin-bottom:1rem"><div class="avatar" style="width:52px;height:52px;font-size:1.1rem">${iniciais(a.nome)}</div>
-      <div><h2 style="margin:0">${esc(a.nome)}</h2><span class="muted">${a.idade ?? '–'} anos · aluno desde ${dataBR(m?.data_inicio)}</span></div></div>
+    <div class="flex" style="margin-bottom:1rem">${avatar(a, 72)}
+      <div><h2 style="margin:0">${esc(a.nome)}</h2><span class="muted">${a.idade ?? '–'} anos · aluno desde ${dataBR(m?.data_inicio)}</span>
+        <div><button type="button" class="btn btn-ghost btn-sm" id="trocar-foto">${a.tem_foto ? 'Trocar foto' : '📷 Adicionar foto'}</button>
+          ${a.tem_foto ? '' : '<span class="badge b-atrasada">sem foto</span>'}</div></div></div>
     <div class="flex" style="margin-bottom:1rem">
       ${a.telefone ? `<a class="btn btn-sm btn-success" target="_blank" rel="noopener" href="${linkWhats(a.telefone)}">WhatsApp</a>` : ''}
       <span class="badge b-${m.status}">${ROTULO_STATUS[m.status]}</span>
@@ -451,9 +453,20 @@ async function verAluno(id) {
       ${r.grupo.length ? `<div style="grid-column:1/-1"><span class="muted">${esc(nomePlano(m.plano_nome))}:</span> ${r.grupo.map(g => g.id === a.id ? `<strong>${esc(g.nome)}</strong>` : `<a href="#" onclick="verAluno(${g.id});return false">${esc(g.nome)}</a>`).join(', ')}
         <span class="muted">· mensalidade no nome do titular (${esc(r.grupo[0].nome)})</span></div>` : ''}
     </div>
+    ${m.status === 'trancada' ? `<div class="card pausa-card" style="margin-bottom:1rem"><h3>⏸ Matrícula pausada</h3>
+      <p style="margin:.2rem 0">Desde ${dataBR(m.pausa_inicio)} · ${m.pausa_ate ? `até ${dataBR(m.pausa_ate)} (volta a ficar ativa sozinha no dia seguinte)` : 'sem data de retorno'}</p>
+      ${m.pausa_motivo ? `<p class="muted" style="margin:.2rem 0">Motivo: ${esc(m.pausa_motivo)}</p>` : ''}
+      <button type="button" class="btn btn-gold btn-sm mt" id="retomar">▶ Retomar agora</button></div>`
+    : m.status === 'ativa' ? `<details class="card" style="margin-bottom:1rem"><summary style="cursor:pointer"><strong>⏸ Pausar matrícula</strong></summary>
+      <p class="muted" style="font-size:.9rem">Durante a pausa não são geradas mensalidades e o aluno sai da chamada e do check-in. Cobranças em aberto que ainda não venceram são canceladas.${m.grupo_id === m.id ? ' <strong>A pausa vale para todas as pessoas do plano.</strong>' : ''}</p>
+      <div class="grid-2">
+        <div class="campo"><label>Pausada até (inclusive)</label><input type="date" id="pausa-ate" min="${hojeISO()}"><div class="hint">Em branco: fica pausada até você retomar.</div></div>
+        <div class="campo"><label>Motivo</label><input id="pausa-motivo" maxlength="200" placeholder="Viagem, lesão, férias..."></div>
+      </div>
+      <button type="button" class="btn btn-outline btn-sm" id="pausar">Pausar matrícula</button></details>` : ''}
     <form id="f-mat" class="card" style="background:var(--bg-2)"><h3>Matrícula</h3>
       <div class="grid-3">
-        <div class="campo"><label>Status</label><select name="status">${['ativa', 'trancada', 'cancelada'].map(s => `<option value="${s}" ${m.status === s ? 'selected' : ''}>${ROTULO_STATUS[s]}</option>`).join('')}</select></div>
+        <div class="campo"><label>Status</label><select name="status">${['ativa', 'cancelada', ...(m.status === 'trancada' ? ['trancada'] : [])].map(s => `<option value="${s}" ${m.status === s ? 'selected' : ''}>${ROTULO_STATUS[s]}</option>`).join('')}</select></div>
         <div class="campo"><label>Plano</label><select name="plano_id">${info.planos.map(p => `<option value="${p.id}" ${p.id === m.plano_id ? 'selected' : ''}>${esc(nomePlano(p))} — ${moeda(p.preco)}</option>`).join('')}</select></div>
         <div class="campo"><label>Turma</label><select name="turma_id">${info.turmas.map(t => `<option value="${t.id}" ${t.id === m.turma_id ? 'selected' : ''}>${esc(t.nome)}</option>`).join('')}</select></div>
         <div class="campo"><label>Nível</label><select name="nivel">${Object.entries(NIVEIS).map(([k, v]) => `<option value="${k}" ${m.nivel === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
@@ -467,6 +480,25 @@ async function verAluno(id) {
       <tbody>${r.mensalidades.map(x => `<tr><td>${competenciaBR(x.competencia)}</td><td>${dataBR(x.vencimento)}</td><td class="num">${moeda(x.valor)}</td><td>${badge(x.status)}</td><td class="num" style="white-space:nowrap">${acoesMensalidade(x)}</td></tr>`).join('') || '<tr><td colspan="5" class="vazio">Sem mensalidades.</td></tr>'}</tbody></table></div>`);
 
   ligarAcoesMensalidade(box.querySelector('#mens-aluno'), () => verAluno(id));
+  const recarregar = () => { verAluno(id); if (abaAtual !== 'dashboard') render(abaAtual); };
+  box.querySelector('#trocar-foto').onclick = async () => {
+    try {
+      const foto = await escolherFoto();
+      if (!foto) return;
+      await api(`/api/admin/alunos/${id}/foto`, { method: 'PUT', body: { foto } });
+      toast('Foto salva!'); recarregar();
+    } catch (err) { toast(err.message, 'erro'); }
+  };
+  box.querySelector('#pausar')?.addEventListener('click', async () => {
+    try {
+      const r = await api(`/api/admin/alunos/${id}/pausar`, { method: 'POST', body: { ate: box.querySelector('#pausa-ate').value, motivo: box.querySelector('#pausa-motivo').value } });
+      toast(r.pessoas > 1 ? `Matrícula pausada para as ${r.pessoas} pessoas do plano.` : 'Matrícula pausada.'); recarregar();
+    } catch (err) { toast(err.message, 'erro'); }
+  });
+  box.querySelector('#retomar')?.addEventListener('click', async () => {
+    try { await api(`/api/admin/alunos/${id}/retomar`, { method: 'POST' }); toast('Matrícula retomada!'); recarregar(); }
+    catch (err) { toast(err.message, 'erro'); }
+  });
   // Confirma quem indicou: escolhe o aluno na lista (o texto digitado na matrícula serve de pista)
   box.querySelector('#ligar-indicacao').onclick = async () => {
     const alunos = (await api('/api/admin/alunos')).filter(x => x.id !== id);
