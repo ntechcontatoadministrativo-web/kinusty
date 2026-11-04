@@ -175,6 +175,28 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .diferencial .ic { font-size: 2.2rem; margin-bottom: .6rem; }
 .diferencial p { color: var(--text-2); font-size: .9rem; margin: 0; }
 
+.redes { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.2rem; }
+.rede { --cor: var(--gold); flex: 0 1 210px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: .8rem; background: var(--card); border: 1px solid var(--line); border-top: 3px solid var(--cor); border-radius: var(--radius); padding: 1.6rem 1.2rem; color: var(--text); transition: .2s; }
+.rede:hover { transform: translateY(-3px); border-color: var(--cor); }
+.rede-ic { width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; background: var(--cor); color: #fff; flex-shrink: 0; }
+.rede-ic svg { width: 28px; height: 28px; }
+.rede-txt { flex: 1; }
+.rede-txt strong { display: block; font-size: 1.05rem; }
+.rede-txt span { color: var(--muted); font-size: .85rem; }
+.rede-acao { color: var(--cor); font-weight: 600; font-size: .88rem; border: 1px solid var(--cor); border-radius: 999px; padding: .35em 1.1em; }
+.rede:hover .rede-acao { background: var(--cor); color: #111; }
+.rede-instagram { --cor: #e1306c; }
+.rede-instagram .rede-ic { background: linear-gradient(45deg, #f9ce34, #ee2a7b 50%, #6228d7); }
+.rede-tiktok { --cor: #25f4ee; }
+.rede-tiktok .rede-ic { background: #000; border: 1px solid var(--line); }
+.rede-youtube { --cor: #ff3d3d; }
+.rede-facebook { --cor: #4d8ef7; }
+.rede-whatsapp { --cor: #25d366; }
+.rede-whatsapp svg { fill: currentColor; }
+.posts-insta { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 340px)); justify-content: center; gap: 1.2rem; margin-top: 2.5rem; }
+.posts-insta:empty { display: none; }
+.posts-insta iframe { width: 100%; height: 560px; border: 0; border-radius: var(--radius); background: #fff; }
+
 .cta-final { text-align: center; background: linear-gradient(135deg, #ffd84a, var(--gold-2)); color: #151100; border-radius: 24px; padding: 3.5rem 2rem; }
 .cta-final h2 { font-size: clamp(2.2rem, 5vw, 3.2rem); }
 .cta-final .btn { background: #111; color: var(--gold); }
@@ -318,6 +340,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   .kpi { padding: 1rem; }
   .kpi .valor { font-size: 1.35rem; }
   .diferenciais { grid-template-columns: 1fr; }
+  .rede { flex-basis: calc(50% - .6rem); padding: 1.2rem .8rem; }
+  .rede-acao { padding: .3em .8em; }
   .secao { padding: 3.5rem 0; }
   .card { padding: 1.1rem; }
   .filtros input, .filtros select { min-width: 0; flex: 1 1 140px; }

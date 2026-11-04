@@ -24,7 +24,7 @@ npm start        # abre em http://localhost:3000
 
 ## O que tem
 
-**Site público** (`/`) — apresentação, planos individuais (2x R$150 · 3x R$200 · 4x R$230), casal (2x R$280 · 3x R$370 · 4x R$420) e família (terça e quinta: 2 pessoas R$270 · 3 R$405 · 4 R$540), turmas e horários, botão de WhatsApp para aula experimental.
+**Site público** (`/`) — apresentação, planos individuais (2x R$150 · 3x R$200 · 4x R$230), casal (2x R$280 · 3x R$370 · 4x R$420) e família (terça e quinta: 2 pessoas R$270 · 3 R$405 · 4 R$540), turmas e horários, seção de redes sociais (Instagram, TikTok, YouTube, Facebook, WhatsApp e posts do Instagram em destaque), botão de WhatsApp para aula experimental.
 
 **Matrícula online** (`/matricula.html`) — 3 etapas: tipo de plano (individual, casal ou família) → plano → turma e dias (as turmas não têm limite de vagas); ficha de cada pessoa igual à ficha em papel (sexo, RG/CPF, endereço, já praticou vôlei, condições de saúde e, para menores de 18, responsável com parentesco, telefone e e-mail); login, autorização de uso de imagem e aceite das regras (reposição de faltas etc.). No casal/família, o 1º é o titular: faz o login e a mensalidade do grupo fica no nome dele; os demais não têm login. Ao concluir, o aluno já entra logado na área dele e a 1ª mensalidade é gerada (vence em 3 dias).
 
@@ -41,7 +41,7 @@ npm start        # abre em http://localhost:3000
 - **Financeiro**: mensalidades por mês, confirmar pagamentos informados pelos alunos, dar baixa (PIX/dinheiro/cartão), estornar, cancelar cobrança
 - **Chamada**: lista dos alunos de cada turma no dia, presente/falta
 - **Turmas e planos**: criar/editar turmas, horários, dias e vagas; alterar preços
-- **Avisos** para o mural dos alunos e **Configurações** (WhatsApp, endereço, chave PIX, dia de vencimento)
+- **Avisos** para o mural dos alunos e **Configurações** (WhatsApp, redes sociais e posts em destaque, endereço, chave PIX, dia de vencimento)
 
 Mensalidades de todos os alunos ativos são geradas automaticamente todo mês (vencimento padrão dia 10).
 

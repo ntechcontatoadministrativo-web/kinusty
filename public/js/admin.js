@@ -360,6 +360,16 @@ const abas = {
             <div class="campo"><label>Chave PIX</label><input name="chave_pix" value="${esc(c.chave_pix)}"><div class="hint">Usada para gerar o QR Code e o PIX copia e cola dos alunos</div></div>
             <div class="campo"><label>Dia de vencimento padrão</label><input type="number" min="1" max="28" name="dia_vencimento" value="${esc(c.dia_vencimento)}"><div class="hint">Aplicado às novas matrículas</div></div>
           </div>
+          <h3 class="mt">Redes sociais</h3>
+          <p class="muted" style="font-size:.85rem;margin-top:-.4rem">Aparecem na seção "Redes sociais" do site. Deixe em branco a rede que a escolinha não usa.</p>
+          <div class="grid-2">
+            <div class="campo"><label>TikTok</label><input name="tiktok" placeholder="usuário, sem @" value="${esc(c.tiktok || '')}"></div>
+            <div class="campo"><label>YouTube</label><input name="youtube" placeholder="link do canal" value="${esc(c.youtube || '')}"></div>
+            <div class="campo"><label>Facebook</label><input name="facebook" placeholder="link da página" value="${esc(c.facebook || '')}"></div>
+          </div>
+          <div class="campo"><label>Posts em destaque do Instagram</label>
+            <textarea name="posts_instagram" rows="4" placeholder="https://www.instagram.com/p/...">${esc(c.posts_instagram || '')}</textarea>
+            <div class="hint">Cole o link de até 6 posts ou reels, um por linha. No Instagram: ⋯ → Copiar link.</div></div>
           <button class="btn btn-gold">Salvar</button></form>
         <div class="card" style="align-self:start"><h3>Mercado Pago</h3>
           ${c.mercadopago.ativo

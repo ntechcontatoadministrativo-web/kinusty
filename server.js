@@ -199,6 +199,12 @@ app.post('/api/mercadopago/webhook', async (req, res) => {
 // =====================================================
 // ROTAS PÚBLICAS
 // =====================================================
+// Extrai o código dos posts/reels do Instagram colados no painel (um link por linha)
+function postsInstagram(texto) {
+  const codigos = [...String(texto || '').matchAll(/instagram\.com\/(?:[\w.]+\/)?(?:p|reels?|tv)\/([\w-]+)/g)].map(m => m[1]);
+  return [...new Set(codigos)].slice(0, 6);
+}
+
 app.get('/api/publico/info', rota(async () => {
   const [cfg, planos, turmas] = await Promise.all([
     getConfig(),
@@ -207,6 +213,10 @@ app.get('/api/publico/info', rota(async () => {
   ]);
   return {
     escola: { nome: cfg.nome_escola, whatsapp: cfg.whatsapp, instagram: cfg.instagram, endereco: cfg.endereco },
+    redes: {
+      instagram: cfg.instagram || '', tiktok: cfg.tiktok || '', youtube: cfg.youtube || '', facebook: cfg.facebook || '',
+      posts: postsInstagram(cfg.posts_instagram),
+    },
     planos: planos.map(p => ({ ...p, dias_fixos: p.dias_fixos ? p.dias_fixos.split(',') : null })),
     turmas: turmas.map(t => ({ ...t, dias: t.dias.split(',') })),
     dias_nomes: DIAS_NOMES,
@@ -801,7 +811,7 @@ admin.get('/config', rota(async req => ({
   mercadopago: { ativo: mp.configurado(), teste: mp.modoTeste(), webhook: `${urlBase(req)}/api/mercadopago/webhook` },
 })));
 admin.put('/config', rota(async req => {
-  const permitidas = ['nome_escola', 'whatsapp', 'instagram', 'endereco', 'chave_pix', 'dia_vencimento'];
+  const permitidas = ['nome_escola', 'whatsapp', 'instagram', 'tiktok', 'youtube', 'facebook', 'posts_instagram', 'endereco', 'chave_pix', 'dia_vencimento'];
   for (const k of permitidas) {
     if (req.body?.[k] !== undefined)
       await db.run('INSERT INTO config (chave, valor) VALUES (?, ?) ON CONFLICT (chave) DO UPDATE SET valor = excluded.valor', k, String(req.body[k]).trim());
