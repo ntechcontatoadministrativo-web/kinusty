@@ -147,7 +147,7 @@ const simNao = v => (v === true || v === 1 || v === '1' || v === 'sim' ? 1 : v =
 // Foto do aluno: o navegador já reduz a imagem e envia como data URL
 function validarFoto(foto, quem = '') {
   const m = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/.exec(typeof foto === 'string' ? foto : '');
-  if (!m) throw falha(400, `Envie uma foto do aluno${quem}.`);
+  if (!m) throw falha(400, foto ? `Não conseguimos ler a foto${quem}. Escolha outra imagem.` : `Envie uma foto do aluno${quem}.`);
   if (foto.length > 500_000) throw falha(400, `A foto${quem} é muito grande. Escolha outra imagem.`);
   return foto;
 }

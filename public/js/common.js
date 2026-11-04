@@ -50,15 +50,26 @@ const avatar = (u, tam = 38) => `<div class="avatar" style="width:${tam}px;heigh
 // Reduz a imagem escolhida para no máximo 600px (JPEG) antes de enviar
 function reduzirFoto(arquivo, max = 600) {
   return new Promise((resolve, reject) => {
-    if (!arquivo?.type.startsWith('image/')) return reject(new Error('Escolha um arquivo de imagem.'));
+    // Alguns celulares mandam a foto da galeria sem tipo: nesse caso o navegador tenta abrir mesmo assim
+    if (!arquivo || (arquivo.type && !arquivo.type.startsWith('image/'))) return reject(new Error('Escolha um arquivo de imagem.'));
     const img = new Image();
     img.onload = () => {
+      URL.revokeObjectURL(img.src);
+      if (!img.width || !img.height) return reject(new Error('Não foi possível ler essa imagem. Tente outra (JPG ou PNG).'));
       const escala = Math.min(1, max / Math.max(img.width, img.height));
       const c = document.createElement('canvas');
-      c.width = Math.round(img.width * escala); c.height = Math.round(img.height * escala);
+      c.width = Math.max(1, Math.round(img.width * escala)); c.height = Math.max(1, Math.round(img.height * escala));
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(img.src);
-      resolve(c.toDataURL('image/jpeg', 0.85));
+      // O servidor aceita até ~500 mil caracteres: baixa a qualidade se a foto passar disso
+      let foto = '';
+      for (const q of [0.85, 0.7, 0.55, 0.4]) {
+        foto = c.toDataURL('image/jpeg', q);
+        if (foto.length < 480_000) break;
+      }
+      // Alguns celulares devolvem "data:," quando falta memória para desenhar a imagem
+      if (!foto.startsWith('data:image/jpeg;base64,') || foto.length < 200 || foto.length >= 480_000)
+        return reject(new Error('Não foi possível processar essa foto. Tente outra ou tire uma nova.'));
+      resolve(foto);
     };
     img.onerror = () => { URL.revokeObjectURL(img.src); reject(new Error('Não foi possível ler essa imagem. Tente outra (JPG ou PNG).')); };
     img.src = URL.createObjectURL(arquivo);
@@ -66,10 +77,20 @@ function reduzirFoto(arquivo, max = 600) {
 }
 
 // Abre o seletor de arquivo (ou a câmera, no celular) e devolve a foto reduzida
+// O input fica na página enquanto o seletor está aberto: fora dela, o Safari do iPhone
+// (e alguns Androids) descartam o elemento e a foto escolhida nunca chega
 function escolherFoto() {
   return new Promise((resolve, reject) => {
     const input = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*' });
-    input.onchange = () => input.files[0] ? reduzirFoto(input.files[0]).then(resolve, reject) : resolve(null);
+    input.style.cssText = 'position:fixed;left:-9999px;opacity:0';
+    document.body.appendChild(input);
+    const fim = () => input.remove();
+    input.addEventListener('change', () => {
+      const arquivo = input.files[0];
+      fim();
+      arquivo ? reduzirFoto(arquivo).then(resolve, reject) : resolve(null);
+    });
+    input.addEventListener('cancel', () => { fim(); resolve(null); });
     input.click();
   });
 }

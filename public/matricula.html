@@ -152,7 +152,22 @@
       const chave = `${p.pessoas}|${turmas ? turmas.map(t => t.id).join(',') : ''}`;
       if (chave === fichas) return;
       fichas = chave;
+      // Guarda o que já foi preenchido (inclusive a foto) para não obrigar a pessoa a refazer
+      const antes = [...pessoasEl.querySelectorAll('[data-pessoa]')].map(b => ({
+        foto: b.dataset.foto,
+        campos: [...b.querySelectorAll('[data-k]')].map(x => [x.dataset.k, x.value]),
+        marcados: [...b.querySelectorAll('input:checked')].map(x => x.value),
+      }));
       pessoasEl.innerHTML = Array.from({ length: p.pessoas }, (_, i) => fichaPessoa(i, p.pessoas, turmas)).join('');
+      pessoasEl.querySelectorAll('[data-pessoa]').forEach((b, i) => {
+        const a = antes[i];
+        if (!a) return;
+        for (const [k, v] of a.campos) { const x = b.querySelector(`[data-k="${k}"]`); if (x) x.value = v; }
+        b.querySelectorAll('input[type=radio], input[type=checkbox]').forEach(x => { x.checked = a.marcados.includes(x.value); });
+        if (a.foto) mostrarFoto(b, a.foto);
+        const nasc = b.querySelector('[data-k="nascimento"]');
+        if (nasc.value) nasc.dispatchEvent(new Event('change', { bubbles: true }));
+      });
       document.querySelector('[data-etapa="2"]').textContent = p.pessoas > 1 ? 'Dados das pessoas' : 'Dados do aluno';
       document.getElementById('txt-imagem').textContent = p.pessoas > 1 ? 'das pessoas inscritas' : 'do aluno';
     }
@@ -163,13 +178,17 @@
       try {
         const foto = await escolherFoto();
         if (!foto) return;
-        bloco.dataset.foto = foto;
-        const previa = bloco.querySelector('[data-previa]');
-        previa.innerHTML = `<img src="${foto}" alt="">`;
-        previa.classList.add('ok');
-        b.textContent = 'Trocar foto';
+        mostrarFoto(bloco, foto);
+        erro.classList.add('oculto');
       } catch (err) { mostrarErro(err.message); }
     });
+    function mostrarFoto(bloco, foto) {
+      bloco.dataset.foto = foto;
+      const previa = bloco.querySelector('[data-previa]');
+      previa.innerHTML = `<img src="${foto}" alt="">`;
+      previa.classList.add('ok');
+      bloco.querySelector('[data-foto]').textContent = 'Trocar foto';
+    }
     pessoasEl.addEventListener('change', e => {
       const bloco = e.target.closest('[data-pessoa]');
       if (e.target.dataset.k === 'nascimento') {
