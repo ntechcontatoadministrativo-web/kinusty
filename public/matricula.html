@@ -108,7 +108,7 @@
         <h3>${titulo}</h3>
         <div class="campo"><label>Foto ${total === 1 ? 'do aluno' : 'da pessoa'} *</label>
           <div class="foto-escolha"><div class="foto-previa" data-previa>📷</div>
-            <div><button type="button" class="btn btn-outline btn-sm" data-foto>Escolher foto</button>
+            <div><button type="button" class="btn btn-outline btn-sm" data-escolher-foto>Escolher foto</button>
               <div class="hint">Foto do rosto, de frente e bem iluminada. No celular dá para tirar na hora.</div></div></div></div>
         ${c('nome', 'Nome completo *','autocomplete="' + (i === 0 ? 'name' : 'off') + '"')}
         <div class="grid-3">
@@ -172,7 +172,7 @@
       document.getElementById('txt-imagem').textContent = p.pessoas > 1 ? 'das pessoas inscritas' : 'do aluno';
     }
     pessoasEl.addEventListener('click', async e => {
-      const b = e.target.closest('[data-foto]');
+      const b = e.target.closest('[data-escolher-foto]');
       if (!b) return;
       const bloco = b.closest('[data-pessoa]');
       try {
@@ -187,7 +187,7 @@
       const previa = bloco.querySelector('[data-previa]');
       previa.innerHTML = `<img src="${foto}" alt="">`;
       previa.classList.add('ok');
-      bloco.querySelector('[data-foto]').textContent = 'Trocar foto';
+      bloco.querySelector('[data-escolher-foto]').textContent = 'Trocar foto';
     }
     pessoasEl.addEventListener('change', e => {
       const bloco = e.target.closest('[data-pessoa]');
