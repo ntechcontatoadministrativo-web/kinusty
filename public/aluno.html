@@ -19,12 +19,15 @@
     <aside class="lateral">
       <a href="/" class="marca"><img src="/img/logo.png" alt=""><span>KINUSTY<small>ÁREA DO ALUNO</small></span></a>
       <nav class="menu">
+        <span class="menu-secao">Minha gestão</span>
         <button data-aba="inicio"><span class="ic">🏠</span>Início</button>
         <button data-aba="mensalidades"><span class="ic">💳</span>Mensalidades <span class="contador oculto" id="cont-mens"></span></button>
         <button data-aba="frequencia"><span class="ic">📅</span>Frequência</button>
         <button data-aba="plano"><span class="ic">🏐</span>Meu plano</button>
         <button data-aba="avisos"><span class="ic">📣</span>Avisos</button>
         <button data-aba="perfil"><span class="ic">👤</span>Meus dados</button>
+        <span class="menu-secao">Comunidade</span>
+        <button data-aba="comunidade" class="menu-comunidade"><span class="ic">💬</span>Feed da turma</button>
       </nav>
       <div class="usuario-box"><div class="avatar" id="avatar"></div><div><strong id="nome-usuario"></strong><small>Aluno(a)</small></div></div>
       <button class="btn btn-ghost btn-sm" onclick="sair()">Sair</button>
@@ -33,6 +36,7 @@
   </div>
   <script src="/js/common.js"></script>
   <script src="/js/seletor.js"></script>
+  <script src="/js/comunidade.js"></script>
   <script src="/js/aluno.js"></script>
 </body>
 </html>

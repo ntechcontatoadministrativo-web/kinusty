@@ -325,6 +325,10 @@ const abas = {
     conteudo.querySelectorAll('[data-editar-turma]').forEach(b => b.onclick = () => formTurma(turmas.find(t => t.id == b.dataset.editarTurma)));
   },
 
+  comunidade() {
+    return montarComunidade(conteudo, { admin: true });
+  },
+
   async avisos() {
     const lista = await api('/api/admin/avisos');
     conteudo.innerHTML = `${topo('Avisos', 'Comunicados exibidos na área de todos os alunos')}

@@ -325,6 +325,107 @@ app.get('/api/fotos/:id', exigirLogin, rota(async (req, res) => {
 }));
 
 // =====================================================
+// COMUNIDADE (alunos e admin)
+// =====================================================
+const comunidade = express.Router();
+comunidade.use(exigirLogin);
+
+const POR_PAGINA = 15;
+const CAMPOS_POST = `p.id, p.user_id, p.texto, p.fixado, p.criado_em, (p.foto IS NOT NULL) AS tem_foto, u.nome, u.role, (u.foto IS NOT NULL) AS autor_tem_foto,
+  (SELECT COUNT(*) FROM post_curtidas c WHERE c.post_id = p.id)::int AS curtidas,
+  EXISTS (SELECT 1 FROM post_curtidas c WHERE c.post_id = p.id AND c.user_id = ?) AS curti,
+  (SELECT COUNT(*) FROM post_comentarios c WHERE c.post_id = p.id)::int AS comentarios`;
+
+const podeApagar = (req, autorId) => req.user.role === 'admin' || autorId === req.user.id;
+// Só mostra a foto do autor para quem já pode vê-la (o admin vê todas, o aluno só a própria)
+const autorVisivel = (req, { autor_tem_foto, ...x }) => ({
+  ...x, autor_foto: !!autor_tem_foto && (req.user.role === 'admin' || x.user_id === req.user.id), pode_apagar: podeApagar(req, x.user_id),
+});
+
+async function postExistente(id) {
+  const p = await db.get('SELECT id, user_id FROM posts WHERE id = ?', Number(id) || 0);
+  if (!p) throw falha(404, 'Post não encontrado.');
+  return p;
+}
+
+// Feed: fixados primeiro (só na 1ª página), depois os mais recentes; "antes" pagina pelo id
+comunidade.get('/posts', rota(async req => {
+  const antes = Number(req.query.antes) || 0;
+  const fixados = antes ? [] : await db.all(`SELECT ${CAMPOS_POST} FROM posts p JOIN users u ON u.id = p.user_id WHERE p.fixado = 1 ORDER BY p.id DESC`, req.user.id);
+  const recentes = await db.all(`SELECT ${CAMPOS_POST} FROM posts p JOIN users u ON u.id = p.user_id
+    WHERE p.fixado = 0 AND (? = 0 OR p.id < ?) ORDER BY p.id DESC LIMIT ${POR_PAGINA + 1}`, req.user.id, antes, antes);
+  return {
+    posts: [...fixados, ...recentes.slice(0, POR_PAGINA)].map(p => autorVisivel(req, p)),
+    mais: recentes.length > POR_PAGINA,
+  };
+}));
+
+comunidade.post('/posts', rota(async req => {
+  const texto = String(req.body?.texto || '').trim();
+  const foto = req.body?.foto ? validarFoto(req.body.foto) : null;
+  if (!texto && !foto) throw falha(400, 'Escreva algo ou adicione uma foto.');
+  if (texto.length > 2000) throw falha(400, 'O post pode ter no máximo 2000 caracteres.');
+  const p = await db.get('INSERT INTO posts (user_id, texto, foto) VALUES (?, ?, ?) RETURNING id', req.user.id, texto, foto);
+  return { ok: true, id: p.id };
+}));
+
+comunidade.delete('/posts/:id', rota(async req => {
+  const p = await postExistente(req.params.id);
+  if (!podeApagar(req, p.user_id)) throw falha(403, 'Você só pode apagar os seus posts.');
+  await db.run('DELETE FROM posts WHERE id = ?', p.id);
+  return { ok: true };
+}));
+
+comunidade.get('/posts/:id/foto', rota(async (req, res) => {
+  const p = await db.get('SELECT foto FROM posts WHERE id = ?', Number(req.params.id) || 0);
+  const m = /^data:(image\/\w+);base64,(.+)$/.exec(p?.foto || '');
+  if (!m) throw falha(404, 'Post sem foto.');
+  res.setHeader('Content-Type', m[1]);
+  res.setHeader('Cache-Control', 'private, max-age=86400'); // a foto de um post não muda
+  res.send(Buffer.from(m[2], 'base64'));
+}));
+
+comunidade.post('/posts/:id/curtir', rota(async req => {
+  const p = await postExistente(req.params.id);
+  const r = await db.run('DELETE FROM post_curtidas WHERE post_id = ? AND user_id = ?', p.id, req.user.id);
+  if (!r.changes) await db.run('INSERT INTO post_curtidas (post_id, user_id) VALUES (?, ?) ON CONFLICT DO NOTHING', p.id, req.user.id);
+  const { n } = await db.get('SELECT COUNT(*)::int AS n FROM post_curtidas WHERE post_id = ?', p.id);
+  return { curti: !r.changes, curtidas: n };
+}));
+
+comunidade.put('/posts/:id/fixar', exigirAdmin, rota(async req => {
+  const p = await postExistente(req.params.id);
+  await db.run('UPDATE posts SET fixado = 1 - fixado WHERE id = ?', p.id);
+  return { ok: true };
+}));
+
+comunidade.get('/posts/:id/comentarios', rota(async req => {
+  const p = await postExistente(req.params.id);
+  const lista = await db.all(`SELECT c.id, c.user_id, c.texto, c.criado_em, u.nome, u.role, (u.foto IS NOT NULL) AS autor_tem_foto FROM post_comentarios c JOIN users u ON u.id = c.user_id
+    WHERE c.post_id = ? ORDER BY c.id`, p.id);
+  return lista.map(c => autorVisivel(req, c));
+}));
+
+comunidade.post('/posts/:id/comentarios', rota(async req => {
+  const p = await postExistente(req.params.id);
+  const texto = String(req.body?.texto || '').trim();
+  if (!texto) throw falha(400, 'Escreva o comentário.');
+  if (texto.length > 500) throw falha(400, 'O comentário pode ter no máximo 500 caracteres.');
+  await db.run('INSERT INTO post_comentarios (post_id, user_id, texto) VALUES (?, ?, ?)', p.id, req.user.id, texto);
+  return { ok: true };
+}));
+
+comunidade.delete('/comentarios/:id', rota(async req => {
+  const c = await db.get('SELECT id, user_id FROM post_comentarios WHERE id = ?', Number(req.params.id) || 0);
+  if (!c) throw falha(404, 'Comentário não encontrado.');
+  if (!podeApagar(req, c.user_id)) throw falha(403, 'Você só pode apagar os seus comentários.');
+  await db.run('DELETE FROM post_comentarios WHERE id = ?', c.id);
+  return { ok: true };
+}));
+
+app.use('/api/comunidade', comunidade);
+
+// =====================================================
 // ÁREA DO ALUNO
 // =====================================================
 const aluno = express.Router();

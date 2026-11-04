@@ -28,12 +28,13 @@ npm start        # abre em http://localhost:3000
 
 **Matrícula online** (`/matricula.html`) — 3 etapas: tipo de plano (individual, casal ou família) → plano → turma e dias (as turmas não têm limite de vagas); ficha de cada pessoa igual à ficha em papel (sexo, RG/CPF, endereço, já praticou vôlei, condições de saúde e, para menores de 18, responsável com parentesco, telefone e e-mail); login, autorização de uso de imagem e aceite das regras (reposição de faltas etc.). No casal/família, o 1º é o titular: faz o login e a mensalidade do grupo fica no nome dele; os demais não têm login. Ao concluir, o aluno já entra logado na área dele e a 1ª mensalidade é gerada (vence em 3 dias).
 
-**Área do aluno** (`/aluno.html`)
+**Área do aluno** (`/aluno.html`) — o menu é dividido em **Minha gestão** e **Comunidade**
 - Início: plano, status, frequência, próximos treinos, mural de avisos
 - Check-in de presença no dia de treino
 - Mensalidades com **PIX copia e cola + QR Code** gerados automaticamente e botão "informar pagamento"
 - Histórico de frequência, sequência de treinos
 - Troca de plano/turma/dias, edição de dados e senha
+- **Comunidade** (feed da turma): alunos e escolinha publicam texto e foto, curtem e comentam; cada um apaga o que é seu
 
 **Painel administrativo** (`/admin.html`)
 - **Dashboard**: alunos ativos e crescimento, faturamento mensal (MRR), projeção anual, recebido x previsto, valor em atraso e % de inadimplência, ticket médio, novas matrículas e cancelamentos, gráfico de faturamento de 6 meses, evolução de alunos, alunos/receita por plano, ocupação das turmas, alunos por dia, nível, faixa etária, aniversariantes do mês, lista de inadimplentes com botão "Cobrar" no WhatsApp
@@ -41,6 +42,7 @@ npm start        # abre em http://localhost:3000
 - **Financeiro**: mensalidades por mês, confirmar pagamentos informados pelos alunos, dar baixa (PIX/dinheiro/cartão), estornar, cancelar cobrança
 - **Chamada**: lista dos alunos de cada turma no dia, presente/falta
 - **Turmas e planos**: criar/editar turmas, horários, dias e vagas; alterar preços
+- **Comunidade**: o admin posta como "Kinusty Volleyball", fixa posts no topo e pode apagar qualquer post ou comentário
 - **Avisos** para o mural dos alunos e **Configurações** (WhatsApp, redes sociais e posts em destaque, endereço, chave PIX, dia de vencimento)
 
 Mensalidades de todos os alunos ativos são geradas automaticamente todo mês (vencimento padrão dia 10).

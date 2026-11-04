@@ -191,6 +191,29 @@ ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS pausa_inicio TEXT;
 ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS pausa_ate TEXT;
 ALTER TABLE matriculas ADD COLUMN IF NOT EXISTS pausa_motivo TEXT;
 
+-- Comunidade: posts de alunos e do admin, com foto opcional, curtidas e comentários
+CREATE TABLE IF NOT EXISTS posts (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  texto TEXT NOT NULL DEFAULT '',
+  foto TEXT,
+  fixado INTEGER NOT NULL DEFAULT 0,
+  criado_em TEXT NOT NULL DEFAULT ${AGORA}
+);
+CREATE TABLE IF NOT EXISTS post_curtidas (
+  post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (post_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS post_comentarios (
+  id SERIAL PRIMARY KEY,
+  post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  texto TEXT NOT NULL,
+  criado_em TEXT NOT NULL DEFAULT ${AGORA}
+);
+CREATE INDEX IF NOT EXISTS idx_coment_post ON post_comentarios(post_id);
+
 CREATE INDEX IF NOT EXISTS idx_mens_user ON mensalidades(user_id);
 CREATE INDEX IF NOT EXISTS idx_mens_comp ON mensalidades(competencia);
 CREATE INDEX IF NOT EXISTS idx_pres_data ON presencas(data);

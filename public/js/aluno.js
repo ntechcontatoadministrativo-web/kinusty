@@ -236,6 +236,11 @@ const abas = {
     };
   },
 
+  async comunidade() {
+    const r = resumo || await carregarResumo();
+    return montarComunidade(conteudo, { eu: r.perfil, admin: false });
+  },
+
   async avisos() {
     await carregarResumo();
     conteudo.innerHTML = `${topo('Avisos', 'Comunicados da Kinusty')}

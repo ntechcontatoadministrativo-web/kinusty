@@ -315,6 +315,43 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .toggle button.on-f { background: rgba(239, 93, 93, .2); color: var(--bad); font-weight: 600; }
 
 /* ---------- Responsivo ---------- */
+/* ---------- Comunidade ---------- */
+.menu-secao { font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); padding: .9em .9em .3em; }
+.menu-secao:first-child { padding-top: 0; }
+.menu button.menu-comunidade { border: 1px dashed var(--line); }
+.menu button.menu-comunidade.ativo { border-color: var(--gold); }
+.feed { max-width: 640px; display: flex; flex-direction: column; gap: 1rem; }
+.post-novo { display: flex; flex-direction: column; gap: .8rem; }
+.post-novo-linha { display: flex; gap: .8rem; align-items: flex-start; }
+.post-novo textarea { min-height: 64px; }
+.post-novo-previa { position: relative; align-self: flex-start; }
+.post-novo-previa img { max-height: 220px; max-width: 100%; border-radius: 12px; display: block; }
+.post-novo-previa button { position: absolute; top: 6px; right: 6px; background: rgba(0, 0, 0, .7); color: #fff; border-radius: 50%; width: 30px; height: 30px; padding: 0; }
+#lista-posts { display: flex; flex-direction: column; gap: 1rem; }
+.card.post { padding: 1.1rem 1.2rem; }
+.post-fixado { border-color: var(--gold); background: linear-gradient(180deg, rgba(242, 196, 24, .06), var(--card) 40%); }
+.post-topo { display: flex; align-items: center; gap: .75rem; }
+.post-autor { flex: 1; min-width: 0; }
+.post-autor small { display: block; color: var(--muted); font-size: .78rem; }
+.post-acoes { display: flex; gap: .2rem; }
+.post-acoes .btn { padding: .35em .55em; }
+.btn-perigo { color: var(--bad) !important; border-color: var(--bad) !important; }
+.avatar-escola { background: #111; border: 1px solid var(--gold); }
+.selo-escola { background: var(--gold-soft); color: var(--gold); font-size: .68rem; vertical-align: middle; }
+.post-texto { white-space: pre-wrap; overflow-wrap: anywhere; margin: .9rem 0 0; line-height: 1.55; }
+.post-foto { display: block; width: calc(100% + 2.4rem); max-width: none; margin: .9rem -1.2rem 0; max-height: 620px; object-fit: cover; background: var(--bg-2); }
+.post-rodape { display: flex; gap: .4rem; margin-top: .8rem; padding-top: .6rem; border-top: 1px solid var(--line); }
+.post-btn { background: transparent; border: 0; color: var(--text-2); font: inherit; font-size: .88rem; padding: .45em .8em; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: .35em; }
+.post-btn:hover { background: var(--card-2); color: var(--text); }
+.post-btn.curtido { color: #ff6b8a; }
+.comentarios { margin-top: .6rem; display: flex; flex-direction: column; gap: .7rem; }
+.comentario { display: flex; gap: .6rem; align-items: flex-start; }
+.comentario-corpo { flex: 1; min-width: 0; background: var(--bg-2); border-radius: 12px; padding: .5em .8em; font-size: .9rem; }
+.comentario-corpo p { margin: .15rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.comentar { display: flex; gap: .5rem; }
+.comentar input { flex: 1; }
+.vazio { text-align: center; color: var(--muted); padding: 2.5rem 1rem; }
+
 @media (max-width: 1100px) {
   .kpis { grid-template-columns: repeat(2, 1fr); }
   .grid-dash, .grid-dash-3 { grid-template-columns: 1fr; }
