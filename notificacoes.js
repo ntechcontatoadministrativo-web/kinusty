@@ -69,6 +69,12 @@ const enviarTeste = userId => enviar([userId], s => ({
   url: '/aluno.html', tag: 'teste',
 }));
 
+// Mensagem escrita pelo admin; "{nome}" vira o primeiro nome de cada aluno
+const enviarMensagem = (userIds, titulo, corpo) => enviar(userIds, s => ({
+  titulo, corpo: corpo.replace(/\{nome\}/gi, primeiroNome(s.nome)),
+  url: '/aluno.html#avisos', tag: `admin-${Date.now()}`,
+}));
+
 // ---------- Agendador ----------
 // As turmas ficam em memória para o banco só ser consultado perto dos horários de treino
 let turmas = null;
@@ -133,4 +139,4 @@ function iniciar() {
   setInterval(verificar, 60e3).unref();
 }
 
-module.exports = { prepararChaves, inscrever, desinscrever, enviarTeste, recarregarTurmas, iniciar, ANTES_MIN };
+module.exports = { prepararChaves, inscrever, desinscrever, enviarTeste, enviarMensagem, recarregarTurmas, iniciar, ANTES_MIN };

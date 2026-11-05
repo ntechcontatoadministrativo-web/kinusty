@@ -351,21 +351,46 @@ const abas = {
   },
 
   async avisos() {
-    const lista = await api('/api/admin/avisos');
+    const [lista, dest] = await Promise.all([api('/api/admin/avisos'), api('/api/admin/notificacoes')]);
+    const totalNotif = dest.alunos.length;
     conteudo.innerHTML = `${topo('Avisos', 'Comunicados exibidos na área de todos os alunos')}
       <div class="grid-dash">
         <div class="card">${lista.map(a => `<div class="aviso-item flex space" style="align-items:flex-start;flex-wrap:nowrap">
           <div><strong>${esc(a.titulo)}</strong><div class="hint">${dataBR(a.criado_em)}</div><p>${esc(a.mensagem)}</p></div>
           <button class="btn btn-sm btn-danger" data-del="${a.id}">Excluir</button></div>`).join('') || '<p class="vazio">Nenhum aviso publicado.</p>'}</div>
-        <form class="card" id="f-aviso" style="align-self:start"><h3>Novo aviso</h3>
+        <div style="display:grid;gap:1rem;align-self:start">
+        <form class="card" id="f-notif"><h3>🔔 Enviar notificação no celular</h3>
+          <p class="muted" style="margin-top:0;font-size:.9rem">Chega na hora, como uma mensagem do WhatsApp. ${totalNotif} aluno(s) ativo(s) com notificações ligadas.</p>
+          <div class="campo"><label>Para quem</label><select name="destino">
+            <option value="todos">Todos os alunos (${totalNotif})</option>
+            <optgroup label="Turma">${dest.turmas.map(t => `<option value="turma:${t.id}">${esc(t.nome)} (${t.com_notificacao})</option>`).join('')}</optgroup>
+            ${totalNotif ? `<optgroup label="Aluno">${dest.alunos.map(a => `<option value="aluno:${a.id}">${esc(a.nome)} · ${esc(a.turma)}</option>`).join('')}</optgroup>` : ''}
+          </select></div>
+          <div class="campo"><label>Título</label><input name="titulo" required maxlength="80" placeholder="Ex.: 🏐 Treino confirmado hoje!"></div>
+          <div class="campo"><label>Mensagem</label><textarea name="mensagem" rows="3" required maxlength="300" placeholder="Ex.: Oi {nome}, hoje o treino começa 15 min mais cedo!"></textarea>
+            <p class="hint">Escreva <strong>{nome}</strong> para colocar o primeiro nome de cada aluno.</p></div>
+          <button class="btn btn-gold">Enviar agora</button></form>
+        <form class="card" id="f-aviso"><h3>Novo aviso</h3>
           <div class="campo"><label>Título</label><input name="titulo" required placeholder="Ex.: Não teremos treino na segunda"></div>
           <div class="campo"><label>Mensagem</label><textarea name="mensagem" rows="5" required></textarea></div>
+          <label class="check campo"><input type="checkbox" name="notificar" checked> <span>Também enviar notificação no celular para todos os alunos</span></label>
           <button class="btn btn-gold">Publicar</button></form>
+        </div>
       </div>`;
+    const resultado = r => r.alunos ? `${r.enviadas} notificação(ões) entregue(s) para ${r.alunos} aluno(s).` : 'Nenhum aluno com notificações ligadas ainda.';
+    document.getElementById('f-notif').onsubmit = async e => {
+      e.preventDefault();
+      const b = e.target.querySelector('button'); b.disabled = true;
+      try { toast(`Enviada! ${resultado(await api('/api/admin/notificacoes', { method: 'POST', body: dadosForm(e.target) }))}`); e.target.reset(); }
+      catch (err) { toast(err.message, 'erro'); }
+      b.disabled = false;
+    };
     document.getElementById('f-aviso').onsubmit = async e => {
       e.preventDefault();
-      try { await api('/api/admin/avisos', { method: 'POST', body: dadosForm(e.target) }); toast('Aviso publicado!'); abas.avisos(); }
-      catch (err) { toast(err.message, 'erro'); }
+      try {
+        const r = await api('/api/admin/avisos', { method: 'POST', body: dadosForm(e.target) });
+        toast(r.alunos !== undefined ? `Aviso publicado! ${resultado(r)}` : 'Aviso publicado!'); abas.avisos();
+      } catch (err) { toast(err.message, 'erro'); }
     };
     conteudo.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
       await api(`/api/admin/avisos/${b.dataset.del}`, { method: 'DELETE' }); toast('Aviso excluído.'); abas.avisos();

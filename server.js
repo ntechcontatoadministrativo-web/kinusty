@@ -953,9 +953,38 @@ admin.post('/avisos', rota(async req => {
   const titulo = limpar(req.body?.titulo), mensagem = limpar(req.body?.mensagem);
   if (!titulo || !mensagem) throw falha(400, 'Preencha título e mensagem.');
   await db.run('INSERT INTO avisos (titulo, mensagem) VALUES (?, ?)', titulo, mensagem);
-  return { ok: true };
+  if (!req.body?.notificar) return { ok: true };
+  return { ok: true, ...(await notificarAlunos('todos', `📣 ${titulo}`, mensagem)) };
 }));
 admin.delete('/avisos/:id', rota(async req => { await db.run('DELETE FROM avisos WHERE id = ?', Number(req.params.id) || 0); return { ok: true }; }));
+
+// ---------- Notificações enviadas pelo admin ----------
+// destino: 'todos', 'turma:<id>' ou 'aluno:<id>' (só alunos com matrícula ativa e notificação ligada)
+async function notificarAlunos(destino, titulo, corpo) {
+  const [tipo, id] = String(destino || 'todos').split(':');
+  const filtro = tipo === 'turma' ? 'AND m.turma_id = ?' : tipo === 'aluno' ? 'AND m.user_id = ?' : '';
+  const ids = (await db.all(`SELECT DISTINCT m.user_id FROM matriculas m
+    WHERE m.status = 'ativa' AND EXISTS (SELECT 1 FROM push_inscricoes pi WHERE pi.user_id = m.user_id) ${filtro}`,
+    ...(filtro ? [Number(id) || 0] : []))).map(r => r.user_id);
+  return { alunos: ids.length, enviadas: await notif.enviarMensagem(ids, titulo, corpo) };
+}
+
+admin.get('/notificacoes', rota(async () => ({
+  turmas: await db.all(`SELECT t.id, t.nome, COUNT(DISTINCT pi.user_id) AS com_notificacao FROM turmas t
+    LEFT JOIN matriculas m ON m.turma_id = t.id AND m.status = 'ativa' LEFT JOIN push_inscricoes pi ON pi.user_id = m.user_id
+    WHERE t.ativo = 1 GROUP BY t.id ORDER BY t.horario_inicio, t.nome`),
+  alunos: await db.all(`SELECT DISTINCT u.id, u.nome, t.nome AS turma FROM users u JOIN matriculas m ON m.user_id = u.id AND m.status = 'ativa'
+    JOIN turmas t ON t.id = m.turma_id WHERE EXISTS (SELECT 1 FROM push_inscricoes pi WHERE pi.user_id = u.id) ORDER BY u.nome`),
+})));
+
+admin.post('/notificacoes', rota(async req => {
+  const titulo = limpar(req.body?.titulo), mensagem = limpar(req.body?.mensagem);
+  if (!titulo || !mensagem) throw falha(400, 'Preencha título e mensagem.');
+  if (titulo.length > 80 || mensagem.length > 300) throw falha(400, 'Título até 80 e mensagem até 300 caracteres.');
+  const r = await notificarAlunos(req.body?.destino, titulo, mensagem);
+  if (!r.alunos) throw falha(400, 'Nenhum aluno desse grupo ativou as notificações no celular ainda.');
+  return r;
+}));
 
 // Avaliações dos treinos feitas pelos alunos
 admin.get('/avaliacoes', rota(async () => {
