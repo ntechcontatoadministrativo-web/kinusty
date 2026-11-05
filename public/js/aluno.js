@@ -432,6 +432,22 @@ async function montarCardNotif() {
   });
 }
 
+// ---------- Tutorial ----------
+const esperarTela = () => new Promise(r => setTimeout(r, 450));
+const passosTutorial = irAba => [
+  { emoji: '👋', titulo: 'Bem-vindo(a) à sua área!', texto: 'Em 1 minuto você conhece tudo o que dá para fazer aqui. Use <strong>Próximo</strong> ou toque fora do balão para avançar.' },
+  { alvo: '.menu [data-aba="inicio"]', emoji: '🏠', titulo: 'Início', texto: 'Seus próximos treinos, o check-in do dia, a frequência e a próxima mensalidade, tudo num lugar só.' },
+  { alvo: '.notif-card [data-ativar-notif], #btn-checkin', emoji: '🔔', titulo: 'Avisos no celular', texto: 'Ative as notificações para receber um lembrete 30 minutos antes do treino e um pedido de avaliação quando ele acabar, como uma mensagem do WhatsApp.',
+    antes: async () => { if (abaAtual !== 'inicio') { irAba('inicio'); await esperarTela(); } } },
+  { alvo: '.menu [data-aba="mensalidades"]', emoji: '💳', titulo: 'Mensalidades', texto: 'Veja o que já foi pago e pague a mensalidade pelo PIX copia e cola ou online, sem sair do site.' },
+  { alvo: '.menu [data-aba="frequencia"]', emoji: '📅', titulo: 'Frequência', texto: 'Seu histórico de treinos, a sequência de presenças 🔥 e as faltas.' },
+  { alvo: '.menu [data-aba="plano"]', emoji: '🏐', titulo: 'Meu plano', texto: 'Troque de plano, turma ou dias de treino quando precisar.' },
+  { alvo: '.menu [data-aba="avisos"]', emoji: '📣', titulo: 'Avisos', texto: 'Comunicados da escolinha: feriados, mudanças de horário, eventos.' },
+  { alvo: '.menu [data-aba="perfil"]', emoji: '👤', titulo: 'Meus dados', texto: 'Atualize sua foto e seus contatos, troque a senha e ligue ou desligue as notificações.' },
+  { alvo: '.menu [data-aba="comunidade"]', emoji: '💬', titulo: 'Feed da turma', texto: 'Poste fotos, curta e comente os treinos com a galera da Kinusty.' },
+  { alvo: '#ver-tutorial', emoji: '❓', titulo: 'Pronto!', texto: 'Quando quiser rever este tutorial, é só tocar aqui. Bons treinos! 🏐' },
+];
+
 let abaAtual = 'inicio';
 function render(aba) {
   abaAtual = aba;
@@ -457,8 +473,11 @@ async function retornoMercadoPago() {
 api('/api/me').then(async r => {
   if (r.user.role === 'admin') return (location.href = '/admin.html');
   await retornoMercadoPago();
-  iniciarMenu(render);
+  const irAba = iniciarMenu(render);
   push.sincronizar().catch(() => {});
+  const passos = passosTutorial(irAba);
+  document.getElementById('ver-tutorial').onclick = () => Tutorial.iniciar(passos, 'kv_tutorial_aluno');
+  Tutorial.primeiraVez(passos, 'kv_tutorial_aluno');
 });
 
 // QR code do PIX

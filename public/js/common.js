@@ -108,7 +108,7 @@ function toast(msg, tipo = 'ok') {
 }
 
 function abrirModal(html) {
-  fecharModal();
+  fecharModal(true);
   const m = document.createElement('div');
   m.className = 'modal';
   m.id = 'modal';
@@ -117,7 +117,15 @@ function abrirModal(html) {
   document.body.appendChild(m);
   return m.querySelector('.modal-box');
 }
-function fecharModal() { document.getElementById('modal')?.remove(); }
+// Fecha pelo mesmo caminho por onde abriu (a animação de saída está no CSS)
+function fecharModal(instantaneo) {
+  const m = document.getElementById('modal');
+  if (!m) return;
+  if (instantaneo) return m.remove();
+  m.id = '';
+  m.classList.add('saindo');
+  setTimeout(() => m.remove(), 200);
+}
 document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharModal(); });
 
 async function sair() {

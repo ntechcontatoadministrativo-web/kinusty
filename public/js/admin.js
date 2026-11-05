@@ -590,6 +590,21 @@ async function verAluno(id) {
   };
 }
 
+// ---------- Tutorial ----------
+const PASSOS_TUTORIAL = [
+  { emoji: '👋', titulo: 'Bem-vindo ao painel da Kinusty', texto: 'Um passeio rápido pelas ferramentas da escolinha. Use <strong>Próximo</strong> ou as setas do teclado.' },
+  { alvo: '.menu [data-aba="dashboard"]', emoji: '📊', titulo: 'Dashboard', texto: 'Receita do mês, alunos ativos, inadimplência, ocupação das turmas e aniversariantes.' },
+  { alvo: '.menu [data-aba="alunos"]', emoji: '👥', titulo: 'Alunos', texto: 'Busque, filtre e abra a ficha de cada aluno: plano, pausa, cancelamento, indicação e exportação.' },
+  { alvo: '.menu [data-aba="financeiro"]', emoji: '💰', titulo: 'Financeiro', texto: 'Confirme pagamentos informados pelos alunos (o número laranja mostra quantos esperam) e acompanhe as mensalidades.' },
+  { alvo: '.menu [data-aba="chamada"]', emoji: '✅', titulo: 'Chamada', texto: 'Marque presença e falta por turma e por dia.' },
+  { alvo: '.menu [data-aba="avaliacoes"]', emoji: '⭐', titulo: 'Avaliações', texto: 'As notas e comentários que os alunos deixam depois de cada treino.' },
+  { alvo: '.menu [data-aba="turmas"]', emoji: '🏐', titulo: 'Turmas e planos', texto: 'Horários, dias e capacidade das turmas, e os preços dos planos.' },
+  { alvo: '.menu [data-aba="avisos"]', emoji: '🔔', titulo: 'Avisos e notificações', texto: 'Publique avisos no mural e mande notificações direto no celular dos alunos: para todos, uma turma ou um aluno.' },
+  { alvo: '.menu [data-aba="comunidade"]', emoji: '💬', titulo: 'Comunidade', texto: 'O feed dos alunos. Você pode postar, fixar posts e apagar o que não for adequado.' },
+  { alvo: '.menu [data-aba="config"]', emoji: '⚙️', titulo: 'Configurações', texto: 'Dados da escolinha, chave PIX, redes sociais, Mercado Pago e sua senha.' },
+  { alvo: '#ver-tutorial', emoji: '❓', titulo: 'Pronto!', texto: 'Para rever este tutorial, clique aqui a qualquer momento.' },
+];
+
 // ---------- Navegação ----------
 const val = id => document.getElementById(id)?.value || '';
 let abaAtual = 'dashboard', irMenu;
@@ -617,4 +632,6 @@ api('/api/me').then(async r => {
   await carregarInfo();
   irMenu = iniciarMenu(render);
   atualizarContador();
+  document.getElementById('ver-tutorial').onclick = () => Tutorial.iniciar(PASSOS_TUTORIAL, 'kv_tutorial_admin');
+  Tutorial.primeiraVez(PASSOS_TUTORIAL, 'kv_tutorial_admin');
 });

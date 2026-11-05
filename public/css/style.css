@@ -396,3 +396,118 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .estrelas button:active { transform: scale(.88); }
 .rotulo-nota { min-height: 1.5em; margin: 0 0 1rem; text-align: center; color: var(--gold); }
 .nota { color: var(--gold); letter-spacing: .08em; white-space: nowrap; }
+
+/* =====================================================
+   ACABAMENTO (princípios de interface da Apple)
+   - resposta no toque (pointer-down), movimento criticamente amortecido
+   - materiais translúcidos para a navegação, tipografia com tracking por tamanho
+   ===================================================== */
+:root {
+  --curva: cubic-bezier(.32, .72, 0, 1);       /* curva das folhas do iOS: sai rápido, assenta sem quicar */
+  --curva-saida: cubic-bezier(.4, 0, 1, 1);
+  --material: rgba(20, 20, 22, .72);
+  --borda-luz: rgba(255, 255, 255, .06);
+  --sombra-1: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 14px rgba(0, 0, 0, .18);
+  --sombra-2: 0 24px 60px rgba(0, 0, 0, .55), 0 2px 8px rgba(0, 0, 0, .3);
+}
+
+/* Tipografia: títulos grandes com tracking negativo e entrelinha justa; texto corrido solto */
+h1, h2 { letter-spacing: -.022em; line-height: 1.12; }
+h3 { letter-spacing: -.012em; }
+.conteudo-topo h1 { font-size: clamp(1.5rem, 1.2rem + 1.2vw, 1.95rem); font-weight: 700; }
+.kpi .valor { letter-spacing: -.025em; }
+.kpi .rotulo, .hint, .badge { letter-spacing: .01em; }
+
+/* Botões: o retorno acontece no instante do toque */
+.btn { transition: transform .1s ease-out, filter .15s, background-color .15s, opacity .15s; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.btn:active:not(:disabled) { transform: scale(.97); filter: brightness(.94); transition-duration: 0s; }
+.btn-gold { box-shadow: 0 1px 0 rgba(255, 255, 255, .35) inset, 0 6px 18px rgba(242, 196, 24, .18); }
+@media (hover: none) { .btn:hover { filter: none; } }
+
+/* Cartões: borda superior clara = luz batendo no material; sombra suave dá profundidade */
+.card, .kpi { box-shadow: 0 1px 0 var(--borda-luz) inset, var(--sombra-1); }
+.kpi { transition: transform .2s var(--curva), border-color .2s; }
+@media (hover: hover) { .kpi:hover { transform: translateY(-2px); } }
+
+/* Campos: anel de foco aparece suavemente */
+input, select, textarea { transition: border-color .15s, box-shadow .2s var(--curva), background-color .15s; }
+input:focus, select:focus, textarea:focus { background: #18181b; }
+
+/* Menu lateral */
+.menu button { transition: background-color .15s, color .15s, transform .1s ease-out; -webkit-tap-highlight-color: transparent; }
+.menu button:active { transform: scale(.98); transition-duration: 0s; }
+.menu button.ativo { box-shadow: 0 0 0 1px rgba(242, 196, 24, .22) inset; }
+.lateral-rodape { display: flex; justify-content: space-between; gap: .4rem; margin-top: -.6rem; }
+.lateral-rodape .btn { padding-inline: .7em; }
+
+/* Barra do celular e topo do site: material translúcido, o conteúdo rola por baixo */
+.topo, .mobile-bar { background: var(--material) !important; -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%); border-bottom-color: var(--borda-luz) !important; }
+@media (max-width: 860px) {
+  .lateral { transition: transform .45s var(--curva), box-shadow .45s var(--curva); }
+  .lateral.aberta { box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .5), var(--sombra-2); }
+}
+
+/* Tabelas: destaque de linha só onde existe mouse */
+tbody tr { transition: background-color .12s; }
+@media (hover: none) { tbody tr:hover { background: none; } }
+
+/* Toast: vidro escuro, entra e sai pelo mesmo caminho */
+#toast { background: rgba(34, 34, 38, .82); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+  border-color: var(--borda-luz); box-shadow: var(--sombra-2); border-radius: 16px; font-weight: 500;
+  transition: transform .5s var(--curva), opacity .3s; opacity: 0; }
+#toast.show { opacity: 1; }
+#toast.erro { border-color: rgba(239, 93, 93, .55); }
+#toast.ok { border-color: rgba(63, 191, 127, .45); }
+
+/* Modal: o fundo escurece e a janela "materializa" (escala + desfoque juntos) */
+.modal { background: rgba(0, 0, 0, .55); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); animation: escurecer .3s var(--curva); }
+.modal-box { box-shadow: 0 1px 0 var(--borda-luz) inset, var(--sombra-2); border-radius: 20px; animation: materializar .42s var(--curva); }
+.modal.saindo { animation: escurecer .2s var(--curva-saida) reverse forwards; }
+.modal.saindo .modal-box { animation: materializar .2s var(--curva-saida) reverse forwards; }
+.modal-fechar { width: 32px; height: 32px; border-radius: 50%; background: var(--card-2); display: grid; place-items: center; font-size: 1.25rem; transition: transform .1s, background-color .15s; }
+.modal-fechar:active { transform: scale(.9); }
+@keyframes escurecer { from { opacity: 0; } }
+@keyframes materializar { from { opacity: 0; transform: scale(.94); filter: blur(6px); } }
+/* No celular a janela vira uma folha que sobe de baixo e desce pelo mesmo caminho */
+@media (max-width: 600px) {
+  .modal { place-items: end center; padding: 0; }
+  .modal-box { width: 100%; max-height: 92vh; border-radius: 22px 22px 0 0; padding-bottom: calc(1.6rem + env(safe-area-inset-bottom)); animation-name: folha; }
+  .modal-box::before { content: ''; display: block; width: 38px; height: 5px; border-radius: 3px; background: var(--line); margin: -.6rem auto 1rem; }
+  .modal.saindo .modal-box { animation-name: folha; }
+}
+@keyframes folha { from { transform: translateY(100%); } }
+
+/* ---------- Tutorial ---------- */
+.tour-foco { position: fixed; z-index: 2000; border-radius: 14px; pointer-events: auto; cursor: pointer;
+  box-shadow: 0 0 0 2px var(--gold), 0 0 0 100vmax rgba(0, 0, 0, .62);
+  transition: top .5s var(--curva), left .5s var(--curva), width .5s var(--curva), height .5s var(--curva); animation: escurecer .35s var(--curva); }
+.tour-foco.sem-alvo { box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .62); }
+.tour-balao { position: fixed; z-index: 2001; background: rgba(28, 28, 31, .9); -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--borda-luz); border-radius: 18px; padding: 1.1rem 1.2rem 1rem; box-shadow: 0 1px 0 rgba(255, 255, 255, .08) inset, var(--sombra-2);
+  transition: top .5s var(--curva), left .5s var(--curva); }
+.tour-balao.entra { animation: materializar .4s var(--curva); }
+.tour-balao h3 { margin: .35rem 0 .3rem; font-size: 1.1rem; }
+.tour-balao p { margin: 0; color: var(--text-2); font-size: .92rem; line-height: 1.55; }
+.tour-topo { display: flex; justify-content: space-between; align-items: center; }
+.tour-emoji { font-size: 1.6rem; line-height: 1; }
+.tour-contagem { font-size: .75rem; color: var(--muted); letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+.tour-pontos { display: flex; gap: 5px; margin: .9rem 0 .8rem; }
+.tour-pontos i { width: 6px; height: 6px; border-radius: 3px; background: var(--line); transition: width .35s var(--curva), background-color .35s; }
+.tour-pontos i.on { width: 18px; background: var(--gold); }
+.tour-acoes { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
+.tour-foco.sai, .tour-balao.sai { opacity: 0; transition: opacity .2s var(--curva-saida); }
+
+/* ---------- Acessibilidade: menos movimento / menos transparência / mais contraste ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; }
+  .modal, .modal-box, .tour-balao.entra, .tour-foco { animation: escurecer .2s ease !important; }
+  .kpi:hover { transform: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .topo, .mobile-bar, #toast, .tour-balao { background: var(--card) !important; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .modal { backdrop-filter: none; -webkit-backdrop-filter: none; background: rgba(0, 0, 0, .8); }
+}
+@media (prefers-contrast: more) {
+  .card, .kpi, .modal-box, .tour-balao { border-color: #6b6b73; }
+  .muted { color: var(--text-2); }
+}
