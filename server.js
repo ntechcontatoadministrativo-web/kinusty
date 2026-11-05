@@ -3,6 +3,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { db, hashSenha, conferirSenha, transacao, getConfig, inicializar } = require('./db');
 const mp = require('./mercadopago');
+const notif = require('./notificacoes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -204,6 +205,9 @@ function postsInstagram(texto) {
   const codigos = [...String(texto || '').matchAll(/instagram\.com\/(?:[\w.]+\/)?(?:p|reels?|tv)\/([\w-]+)/g)].map(m => m[1]);
   return [...new Set(codigos)].slice(0, 6);
 }
+
+// Chave pública para o celular se inscrever nas notificações
+app.get('/api/push/chave', rota(async () => ({ chave: await notif.prepararChaves() })));
 
 app.get('/api/publico/info', rota(async () => {
   const [cfg, planos, turmas] = await Promise.all([
@@ -463,6 +467,25 @@ async function frequencia(userId, desde) {
 const listarMensalidades = async userId =>
   (await db.all('SELECT * FROM mensalidades WHERE user_id = ? ORDER BY competencia DESC', userId)).map(m => ({ ...m, status: statusMensalidade(m) }));
 
+const horaAgora = () => { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+
+// Último treino do aluno (até 3 dias atrás) que já acabou, sem falta e ainda sem avaliação
+async function avaliacaoPendente(mat, userId) {
+  if (!mat || mat.status !== 'ativa') return null;
+  const dias = mat.dias.split(',');
+  for (let i = 0; i < 3; i++) {
+    const d = addDias(hoje(), -i);
+    if (!dias.includes(diaSemana(d)) || d < mat.data_inicio) continue;
+    if (i === 0 && horaAgora() < mat.horario_fim) continue;
+    const [feita, falta] = await Promise.all([
+      db.get('SELECT 1 FROM avaliacoes WHERE user_id = ? AND data = ?', userId, d),
+      db.get('SELECT 1 FROM presencas WHERE user_id = ? AND data = ? AND presente = 0', userId, d),
+    ]);
+    return feita || falta ? null : { data: d, dia: DIAS_NOMES[diaSemana(d)], turma: mat.turma_nome };
+  }
+  return null;
+}
+
 aluno.get('/resumo', rota(async req => {
   await retomarPausasVencidas();
   const mat = await matriculaDo(req.user.id);
@@ -478,7 +501,7 @@ aluno.get('/resumo', rota(async req => {
     em_atraso: mens.filter(m => m.status === 'atrasada').length,
     frequencia_30d: await frequencia(req.user.id, addDias(hoje(), -30)),
     frequencia_total: await frequencia(req.user.id, '0000-00-00'),
-    avisos, treina_hoje: treinaHoje, checkin_hoje: !!presencaHoje?.presente,
+    avisos, treina_hoje: treinaHoje, checkin_hoje: !!presencaHoje?.presente, avaliacao_pendente: await avaliacaoPendente(mat, req.user.id),
     pix: cfg.chave_pix, whatsapp: cfg.whatsapp, dias_nomes: DIAS_NOMES, mercadopago: mp.configurado(),
   };
 }));
@@ -562,6 +585,31 @@ aluno.put('/plano', rota(async req => {
   if (plano.tipo !== 'individual') throw falha(400, 'Para mudar para o plano casal ou família, fale com a escolinha.');
   await db.run('UPDATE matriculas SET plano_id = ?, turma_id = ?, dias = ? WHERE id = ?', plano.id, turma.id, dias.join(','), mat.id);
   return { ok: true };
+}));
+
+aluno.post('/avaliacoes', rota(async req => {
+  const b = req.body || {};
+  const data = String(b.data || '');
+  const nota = Number(b.nota);
+  const comentario = String(b.comentario || '').trim();
+  if (!Number.isInteger(nota) || nota < 1 || nota > 5) throw falha(400, 'Escolha uma nota de 1 a 5 estrelas.');
+  if (comentario.length > 500) throw falha(400, 'O comentário pode ter no máximo 500 caracteres.');
+  const mat = await matriculaDo(req.user.id);
+  const valida = /^\d{4}-\d{2}-\d{2}$/.test(data) && mat && data >= addDias(hoje(), -7) && data <= hoje() && data >= mat.data_inicio
+    && mat.dias.split(',').includes(diaSemana(data)) && (data < hoje() || horaAgora() >= mat.horario_fim);
+  if (!valida) throw falha(400, 'Só dá para avaliar os seus treinos que já aconteceram (até 7 dias atrás).');
+  await db.run(`INSERT INTO avaliacoes (user_id, turma_id, data, nota, comentario) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT (user_id, data) DO UPDATE SET nota = excluded.nota, comentario = excluded.comentario`, req.user.id, mat.turma_id, data, nota, comentario || null);
+  return { ok: true };
+}));
+
+// Notificações no celular
+aluno.post('/push', rota(async req => { await notif.inscrever(req.user.id, req.body?.inscricao); return { ok: true }; }));
+aluno.delete('/push', rota(async req => { await notif.desinscrever(req.user.id, req.body?.endpoint); return { ok: true }; }));
+aluno.post('/push/teste', rota(async req => {
+  const enviadas = await notif.enviarTeste(req.user.id);
+  if (!enviadas) throw falha(400, 'Nenhum aparelho com notificações ativas. Ative de novo neste celular.');
+  return { enviadas };
 }));
 
 app.use('/api/aluno', aluno);
@@ -881,11 +929,13 @@ function dadosTurma(b) {
 }
 admin.post('/turmas', rota(async req => {
   await db.run('INSERT INTO turmas (nome, categoria, horario_inicio, horario_fim, dias, capacidade, ativo) VALUES (?, ?, ?, ?, ?, ?, ?)', ...dadosTurma(req.body || {}));
+  await notif.recarregarTurmas();
   return { ok: true };
 }));
 admin.put('/turmas/:id', rota(async req => {
   await db.run('UPDATE turmas SET nome = ?, categoria = ?, horario_inicio = ?, horario_fim = ?, dias = ?, capacidade = ?, ativo = ? WHERE id = ?',
     ...dadosTurma(req.body || {}), Number(req.params.id) || 0);
+  await notif.recarregarTurmas();
   return { ok: true };
 }));
 
@@ -907,8 +957,24 @@ admin.post('/avisos', rota(async req => {
 }));
 admin.delete('/avisos/:id', rota(async req => { await db.run('DELETE FROM avisos WHERE id = ?', Number(req.params.id) || 0); return { ok: true }; }));
 
+// Avaliações dos treinos feitas pelos alunos
+admin.get('/avaliacoes', rota(async () => {
+  const desde = addDias(hoje(), -30);
+  const [lista, geral, mes, porTurma, inscritos] = await Promise.all([
+    db.all(`SELECT a.id, a.data, a.nota, a.comentario, a.criado_em, u.id AS user_id, u.nome, (u.foto IS NOT NULL) AS tem_foto, t.nome AS turma
+      FROM avaliacoes a JOIN users u ON u.id = a.user_id LEFT JOIN turmas t ON t.id = a.turma_id ORDER BY a.data DESC, a.id DESC LIMIT 150`),
+    db.get('SELECT COUNT(*) AS n, AVG(nota) AS media FROM avaliacoes'),
+    db.get('SELECT COUNT(*) AS n, AVG(nota) AS media FROM avaliacoes WHERE data >= ?', desde),
+    db.all(`SELECT t.nome AS turma, COUNT(*) AS n, AVG(a.nota) AS media FROM avaliacoes a JOIN turmas t ON t.id = a.turma_id
+      WHERE a.data >= ? GROUP BY t.nome ORDER BY t.nome`, desde),
+    db.get('SELECT COUNT(DISTINCT user_id) AS n FROM push_inscricoes'),
+  ]);
+  return { lista, geral, mes, por_turma: porTurma, alunos_com_notificacao: inscritos.n, antes_min: notif.ANTES_MIN };
+}));
+
 admin.get('/config', rota(async req => ({
   ...(await getConfig()),
+  vapid_privada: undefined,
   mercadopago: { ativo: mp.configurado(), teste: mp.modoTeste(), webhook: `${urlBase(req)}/api/mercadopago/webhook` },
 })));
 admin.put('/config', rota(async req => {
@@ -940,6 +1006,7 @@ if (require.main === module) {
   inicializar().then(() => {
     rotinas();
     setInterval(rotinas, 6 * 3600e3).unref();
+    notif.iniciar();
     app.listen(PORT, () => {
       console.log(`\n🏐 Kinusty Volleyball rodando em http://localhost:${PORT}`);
       console.log('   Admin: admin@kinusty.com / kinusty2026 (troque a senha em Configurações)\n');

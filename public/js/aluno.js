@@ -95,6 +95,105 @@ async function trocarFoto(depois) {
   } catch (e) { toast(e.message, 'erro'); }
 }
 
+// ---------- Notificações no celular (chegam como as do WhatsApp, mesmo com o site fechado) ----------
+const push = {
+  suportado: 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window,
+  ios: /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
+  async inscricao() {
+    if (!this.suportado) return null;
+    const reg = await navigator.serviceWorker.getRegistration('/');
+    return reg ? reg.pushManager.getSubscription() : null;
+  },
+  // ativo | inativo | bloqueado | instalar (iPhone fora da Tela de Início) | sem-suporte
+  async estado() {
+    if (!this.suportado) return this.ios ? 'instalar' : 'sem-suporte';
+    if (Notification.permission === 'denied') return 'bloqueado';
+    return Notification.permission === 'granted' && await this.inscricao() ? 'ativo' : 'inativo';
+  },
+  async ativar() {
+    if (await Notification.requestPermission() !== 'granted') throw new Error('Você não permitiu as notificações. Libere nas configurações do navegador.');
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
+    const { chave } = await api('/api/push/chave');
+    const b64 = (chave + '='.repeat((4 - chave.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+    const sub = await reg.pushManager.getSubscription()
+      || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: Uint8Array.from(atob(b64), c => c.charCodeAt(0)) });
+    await api('/api/aluno/push', { method: 'POST', body: { inscricao: sub.toJSON() } });
+  },
+  async desativar() {
+    const sub = await this.inscricao();
+    if (!sub) return;
+    await api('/api/aluno/push', { method: 'DELETE', body: { endpoint: sub.endpoint } });
+    await sub.unsubscribe();
+  },
+  // Ao abrir o site: confirma no servidor que este aparelho é deste aluno
+  async sincronizar() {
+    if (!this.suportado) return;
+    await navigator.serviceWorker.register('/sw.js');
+    const sub = Notification.permission === 'granted' && await this.inscricao();
+    if (sub) await api('/api/aluno/push', { method: 'POST', body: { inscricao: sub.toJSON() }, silencioso: true });
+  },
+};
+
+const TEXTO_NOTIF = {
+  inativo: 'Receba um aviso no celular 30 minutos antes do treino e, quando acabar, um lembrete para avaliar.',
+  bloqueado: 'As notificações estão bloqueadas neste navegador. Toque no cadeado ao lado do endereço do site e permita as notificações.',
+  instalar: 'No iPhone: toque em Compartilhar ⬆️ → "Adicionar à Tela de Início", abra o Kinusty pelo ícone e ative as notificações por lá.',
+};
+
+async function cartaoNotificacoes() {
+  const estado = await push.estado();
+  if (!TEXTO_NOTIF[estado]) return '';
+  return `<div class="card notif-card"><div><strong>🔔 Ative as notificações dos treinos</strong><p class="texto-2">${TEXTO_NOTIF[estado]}</p></div>
+    ${estado === 'inativo' ? '<button class="btn btn-gold btn-sm" data-ativar-notif>Ativar notificações</button>' : ''}</div>`;
+}
+
+function ligarBotoesNotif(depois) {
+  conteudo.querySelectorAll('[data-ativar-notif]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try { await push.ativar(); toast('Notificações ativadas! 🔔'); depois(); }
+    catch (e) { toast(e.message, 'erro'); b.disabled = false; }
+  });
+}
+
+// ---------- Avaliação do treino ----------
+const ROTULO_NOTA = ['', 'Ruim 😕', 'Regular 😐', 'Bom 🙂', 'Muito bom 😄', 'Excelente! 🤩'];
+function abrirAvaliacao(av, depois) {
+  const box = abrirModal(`
+    <h2>Como foi o treino?</h2>
+    <p class="muted" style="margin-top:0">${esc(av.dia || '')} ${dataBR(av.data)}${av.turma ? ` · ${esc(av.turma)}` : ''}</p>
+    <div class="estrelas">${[1, 2, 3, 4, 5].map(n => `<button type="button" data-nota="${n}" aria-label="${n} estrela(s)">★</button>`).join('')}</div>
+    <p class="rotulo-nota" id="rotulo-nota"></p>
+    <div class="campo"><label>Quer deixar um comentário? (opcional)</label>
+      <textarea id="coment-aval" rows="3" maxlength="500" placeholder="O que você achou do treino, do professor, dos exercícios..."></textarea></div>
+    <button class="btn btn-gold" id="enviar-aval" style="width:100%">Enviar avaliação</button>`);
+  let nota = 0;
+  const estrelas = box.querySelectorAll('[data-nota]');
+  estrelas.forEach(b => b.onclick = () => {
+    nota = Number(b.dataset.nota);
+    estrelas.forEach(e => e.classList.toggle('on', Number(e.dataset.nota) <= nota));
+    box.querySelector('#rotulo-nota').textContent = ROTULO_NOTA[nota];
+  });
+  box.querySelector('#enviar-aval').onclick = async e => {
+    if (!nota) return toast('Toque nas estrelas para dar a sua nota.', 'erro');
+    e.target.disabled = true;
+    try {
+      await api('/api/aluno/avaliacoes', { method: 'POST', body: { data: av.data, nota, comentario: box.querySelector('#coment-aval').value } });
+      fecharModal(); toast('Obrigado pela avaliação! 🏐'); depois?.();
+    } catch (err) { toast(err.message, 'erro'); e.target.disabled = false; }
+  };
+}
+
+// Veio pela notificação "avalie o treino": abre a avaliação direto
+function avaliacaoDoLink() {
+  const data = new URLSearchParams(location.search).get('avaliar');
+  if (!data) return;
+  history.replaceState(null, '', location.pathname + location.hash);
+  const p = resumo?.avaliacao_pendente;
+  if (p?.data === data) abrirAvaliacao(p, abas.inicio);
+  else if (/^\d{4}-\d{2}-\d{2}$/.test(data)) abrirAvaliacao({ data, turma: resumo?.matricula?.turma_nome }, abas.inicio);
+}
+
 const valorPlano = mat => !mat ? '–' : mat.grupo_id && !mat.valor_mensal ? 'pago pelo titular do plano' : `${moeda(mat.valor_mensal)}/mês`;
 
 // ---------- Abas ----------
@@ -110,6 +209,10 @@ const abas = {
       ${boasVindas ? `<div class="card boas-vindas" style="margin-bottom:1rem">
         <h3>🎉 Matrícula realizada com sucesso!</h3>
         <p class="texto-2" style="margin:0">Bem-vindo(a) à família Kinusty! Sua primeira mensalidade já está disponível em <strong>Mensalidades</strong>. Nos vemos na quadra 🏐</p></div>` : ''}
+      ${await cartaoNotificacoes()}
+      ${r.avaliacao_pendente ? `<div class="card notif-card"><div><strong>⭐ Como foi o treino de ${r.avaliacao_pendente.dia.toLowerCase()}?</strong>
+        <p class="texto-2">${dataBR(r.avaliacao_pendente.data)} · ${esc(r.avaliacao_pendente.turma)} — sua opinião ajuda a escolinha a melhorar.</p></div>
+        <button class="btn btn-gold btn-sm" id="avaliar-treino">Avaliar treino</button></div>` : ''}
       ${!r.perfil.tem_foto ? `<div class="card pausa-card flex space" style="margin-bottom:1rem"><span>📷 Falta a sua foto no cadastro da escolinha.</span>
         <button class="btn btn-gold btn-sm" id="add-foto">Adicionar foto</button></div>` : ''}
       ${mat?.status === 'trancada' ? `<div class="card pausa-card" style="margin-bottom:1rem"><strong>⏸ Sua matrícula está pausada</strong>
@@ -150,6 +253,9 @@ const abas = {
     });
     document.getElementById('pagar-agora')?.addEventListener('click', () => abrirPagamento(m));
     document.getElementById('add-foto')?.addEventListener('click', () => trocarFoto(abas.inicio));
+    document.getElementById('avaliar-treino')?.addEventListener('click', () => abrirAvaliacao(r.avaliacao_pendente, abas.inicio));
+    ligarBotoesNotif(abas.inicio);
+    avaliacaoDoLink();
   },
 
   async mensalidades() {
@@ -277,13 +383,17 @@ const abas = {
             <option value="nao" ${p.autoriza_imagem === 0 ? 'selected' : ''}>Não autorizo</option></select></div>
           <button class="btn btn-gold">Salvar</button>
         </form>
-        <form class="card" id="f-senha" style="align-self:start">
+        <div style="display:grid;gap:1rem;align-self:start">
+        <div class="card" id="card-notif"><h3>🔔 Notificações no celular</h3><p class="muted">Carregando...</p></div>
+        <form class="card" id="f-senha">
           <h3>Alterar senha</h3>
           <div class="campo"><label>Senha atual</label><input type="password" name="atual" required autocomplete="current-password"></div>
           <div class="campo"><label>Nova senha</label><input type="password" name="nova" minlength="6" required autocomplete="new-password"></div>
           <button class="btn btn-outline">Alterar senha</button>
         </form>
+        </div>
       </div>`;
+    montarCardNotif();
     document.getElementById('trocar-foto').onclick = () => trocarFoto(abas.perfil);
     document.getElementById('f-perfil').onsubmit = async e => {
       e.preventDefault();
@@ -297,6 +407,30 @@ const abas = {
     };
   },
 };
+
+async function montarCardNotif() {
+  const card = document.getElementById('card-notif');
+  if (!card) return;
+  const estado = await push.estado();
+  const ativo = estado === 'ativo';
+  card.innerHTML = `<h3>🔔 Notificações no celular</h3>
+    <p class="muted" style="margin-top:0;font-size:.9rem">${ativo ? '✅ Ativadas neste aparelho. Você recebe um aviso 30 minutos antes de cada treino e um pedido de avaliação quando ele acabar.'
+      : TEXTO_NOTIF[estado] || 'Este navegador não recebe notificações. Abra o site pelo Chrome (Android) ou pelo ícone na Tela de Início (iPhone).'}</p>
+    <div class="flex">${ativo ? `<button class="btn btn-outline btn-sm" id="testar-notif">Enviar notificação de teste</button>
+      <button class="btn btn-ghost btn-sm" id="desativar-notif">Desativar</button>`
+      : estado === 'inativo' ? '<button class="btn btn-gold btn-sm" data-ativar-notif>Ativar notificações</button>' : ''}</div>`;
+  ligarBotoesNotif(montarCardNotif);
+  card.querySelector('#testar-notif')?.addEventListener('click', async e => {
+    e.target.disabled = true;
+    try { await api('/api/aluno/push/teste', { method: 'POST' }); toast('Enviada! Ela deve aparecer em alguns segundos.'); }
+    catch (err) { toast(err.message, 'erro'); }
+    e.target.disabled = false;
+  });
+  card.querySelector('#desativar-notif')?.addEventListener('click', async () => {
+    try { await push.desativar(); toast('Notificações desativadas.'); montarCardNotif(); }
+    catch (err) { toast(err.message, 'erro'); }
+  });
+}
 
 let abaAtual = 'inicio';
 function render(aba) {
@@ -324,6 +458,7 @@ api('/api/me').then(async r => {
   if (r.user.role === 'admin') return (location.href = '/admin.html');
   await retornoMercadoPago();
   iniciarMenu(render);
+  push.sincronizar().catch(() => {});
 });
 
 // QR code do PIX

@@ -329,6 +329,27 @@ const abas = {
     return montarComunidade(conteudo, { admin: true });
   },
 
+  async avaliacoes() {
+    const d = await api('/api/admin/avaliacoes');
+    const media = v => v == null ? '–' : v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    const estrelas = n => `<span class="nota">${'★'.repeat(n)}<span style="color:var(--line)">${'★'.repeat(5 - n)}</span></span>`;
+    conteudo.innerHTML = `${topo('Avaliações dos treinos', 'O que os alunos acharam de cada treino')}
+      <div class="kpis">
+        <div class="kpi destaque"><div class="rotulo">Média (30 dias)</div><div class="valor">${media(d.mes.media)} ★</div><div class="sub">${d.mes.n} avaliação(ões)</div></div>
+        <div class="kpi"><div class="rotulo">Média geral</div><div class="valor">${media(d.geral.media)} ★</div><div class="sub">${d.geral.n} no total</div></div>
+        <div class="kpi"><div class="rotulo">Notificações ativas</div><div class="valor">${d.alunos_com_notificacao}</div><div class="sub">aluno(s) recebem no celular</div></div>
+        ${d.por_turma.map(t => `<div class="kpi"><div class="rotulo">${esc(t.turma)} (30 dias)</div><div class="valor">${media(t.media)} ★</div><div class="sub">${t.n} avaliação(ões)</div></div>`).join('')}
+      </div>
+      <p class="hint" style="margin:-.4rem 0 1rem">Os alunos com notificações ativas recebem um aviso ${d.antes_min} minutos antes do treino e, quando ele acaba, um pedido para avaliar.</p>
+      <div class="card"><div class="tabela-wrap"><table>
+        <thead><tr><th>Treino</th><th>Aluno</th><th>Turma</th><th>Nota</th><th>Comentário</th></tr></thead>
+        <tbody>${d.lista.map(a => `<tr><td>${dataBR(a.data)}</td>
+          <td><a href="#" data-ver="${a.user_id}">${esc(a.nome)}</a></td><td>${esc(a.turma || '—')}</td>
+          <td>${estrelas(a.nota)}</td><td class="texto-2">${esc(a.comentario || '—')}</td></tr>`).join('') || '<tr><td colspan="5" class="vazio">Nenhuma avaliação ainda.</td></tr>'}</tbody>
+      </table></div></div>`;
+    conteudo.querySelectorAll('[data-ver]').forEach(a => a.onclick = e => { e.preventDefault(); verAluno(Number(a.dataset.ver)); });
+  },
+
   async avisos() {
     const lista = await api('/api/admin/avisos');
     conteudo.innerHTML = `${topo('Avisos', 'Comunicados exibidos na área de todos os alunos')}

@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  SITE_URL: https://kinusty-volei.onrender.com
+  SITE_URL: https://kinusty.onrender.com
 
 jobs:
   ping:

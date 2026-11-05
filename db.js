@@ -214,6 +214,34 @@ CREATE TABLE IF NOT EXISTS post_comentarios (
 );
 CREATE INDEX IF NOT EXISTS idx_coment_post ON post_comentarios(post_id);
 
+-- Notificações no celular (Web Push): uma inscrição por aparelho do aluno
+CREATE TABLE IF NOT EXISTS push_inscricoes (
+  endpoint TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  criado_em TEXT NOT NULL DEFAULT ${AGORA}
+);
+-- Evita mandar o mesmo lembrete duas vezes (tipo: 'lembrete' antes do treino, 'avaliacao' depois)
+CREATE TABLE IF NOT EXISTS notificacoes_enviadas (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  data TEXT NOT NULL,
+  tipo TEXT NOT NULL,
+  PRIMARY KEY (user_id, data, tipo)
+);
+-- Avaliação do treino feita pelo aluno (nota de 1 a 5)
+CREATE TABLE IF NOT EXISTS avaliacoes (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  turma_id INTEGER REFERENCES turmas(id) ON DELETE SET NULL,
+  data TEXT NOT NULL,
+  nota INTEGER NOT NULL,
+  comentario TEXT,
+  criado_em TEXT NOT NULL DEFAULT ${AGORA},
+  UNIQUE (user_id, data)
+);
+CREATE INDEX IF NOT EXISTS idx_push_user ON push_inscricoes(user_id);
+
 CREATE INDEX IF NOT EXISTS idx_mens_user ON mensalidades(user_id);
 CREATE INDEX IF NOT EXISTS idx_mens_comp ON mensalidades(competencia);
 CREATE INDEX IF NOT EXISTS idx_pres_data ON presencas(data);
